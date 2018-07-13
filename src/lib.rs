@@ -48,6 +48,16 @@ impl<T> ToProblem for T where T: ToString {
     }
 }
 
+pub trait OptionToProblem {
+    fn unwrap_problem(self) -> Problem;
+}
+
+impl<E> OptionToProblem for Option<E> where E: ToProblem {
+    fn unwrap_problem(self) -> Problem {
+        self.map(ToProblem::to_problem).unwrap_or(Problem::cause("<unknown error>"))
+    }
+}
+
 pub trait ResultToProblem<O> {
     fn to_problem(self) -> Result<O, Problem>;
 }
@@ -55,6 +65,16 @@ pub trait ResultToProblem<O> {
 impl<O, E> ResultToProblem<O> for Result<O, E> where E: ToProblem {
     fn to_problem(self) -> Result<O, Problem> {
         self.map_err(|e| e.to_problem())
+    }
+}
+
+pub trait ResultOptionToProblem<O> {
+    fn to_problem(self) -> Result<O, Problem>;
+}
+
+impl<O, E> ResultOptionToProblem<O> for Result<O, Option<E>> where E: ToProblem {
+    fn to_problem(self) -> Result<O, Problem> {
+        self.map_err(OptionToProblem::unwrap_problem)
     }
 }
 
@@ -90,17 +110,42 @@ impl<O, E> FailedTo<O> for Result<O, E> where E: Display {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
     #[test]
     #[should_panic(expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got problem caused by: boom!")]
     fn test_integration() {
-        use std::io;
-
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
             .to_problem()
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")
             .or_failed_to("complete processing task")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: boom!")]
+    fn test_option_errors() {
+        Err(Some(io::Error::new(io::ErrorKind::InvalidInput, "boom!")))
+            .map_err(OptionToProblem::unwrap_problem)
+            .or_failed_to("foo")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: <unknown error>")]
+    fn test_option_errors_unknown() {
+        let err: Result<(), Option<io::Error>> = Err(None);
+        err
+            .map_err(OptionToProblem::unwrap_problem)
+            .or_failed_to("foo")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: <unknown error>")]
+    fn test_result_option_errors_unknown() {
+        let err: Result<(), Option<io::Error>> = Err(None);
+        err
+            .to_problem()
+            .or_failed_to("foo")
     }
 }

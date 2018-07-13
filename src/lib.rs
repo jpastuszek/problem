@@ -9,11 +9,11 @@ pub enum Problem {
 }
 
 impl Problem {
-    fn cause(msg: impl ToString) -> Problem {
+    pub fn cause(msg: impl ToString) -> Problem {
         Problem::Cause(msg.to_string())
     }
 
-    fn while_context(self, msg: impl ToString) -> Problem {
+    pub fn while_context(self, msg: impl ToString) -> Problem {
         Problem::Context(msg.to_string(), Box::new(self))
     }
 }

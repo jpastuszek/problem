@@ -48,12 +48,12 @@ impl<T> ToProblem for T where T: ToString {
     }
 }
 
-pub trait OptionToProblem {
-    fn unwrap_problem(self) -> Problem;
+pub trait OptionErrorToProblem {
+    fn to_problem(self) -> Problem;
 }
 
-impl<E> OptionToProblem for Option<E> where E: ToProblem {
-    fn unwrap_problem(self) -> Problem {
+impl<E> OptionErrorToProblem for Option<E> where E: ToProblem {
+    fn to_problem(self) -> Problem {
         self.map(ToProblem::to_problem).unwrap_or(Problem::cause("<unknown error>"))
     }
 }
@@ -74,7 +74,17 @@ pub trait ResultOptionToProblem<O> {
 
 impl<O, E> ResultOptionToProblem<O> for Result<O, Option<E>> where E: ToProblem {
     fn to_problem(self) -> Result<O, Problem> {
-        self.map_err(OptionToProblem::unwrap_problem)
+        self.map_err(OptionErrorToProblem::to_problem)
+    }
+}
+
+pub trait OptionToProblem<O> {
+    fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem> where M: ToString;
+}
+
+impl<O> OptionToProblem<O> for Option<O> {
+    fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem> where M: ToString {
+        self.ok_or_else(|| Problem::cause(msg))
     }
 }
 
@@ -107,6 +117,33 @@ impl<O, E> FailedTo<O> for Result<O, E> where E: Display {
     }
 }
 
+pub struct ProblemIter<I> {
+    inner: I,
+    message: String
+}
+
+impl<I, O, E> Iterator for ProblemIter<I> where I: Iterator<Item=Result<O, E>>, E: Display  {
+    type Item = O;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|res| res.or_failed_to(self.message.as_str()))
+    }
+}
+
+pub trait FailedToIter<O, E>: Sized {
+    fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self>;
+}
+
+impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: Display {
+    /// Convert iterator or Result<O, E> to iterator of O and panic on first E with problme message
+    fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self> {
+        ProblemIter {
+            inner: self,
+            message: msg.to_string()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,7 +164,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: boom!")]
     fn test_option_errors() {
         Err(Some(io::Error::new(io::ErrorKind::InvalidInput, "boom!")))
-            .map_err(OptionToProblem::unwrap_problem)
+            .map_err(OptionErrorToProblem::to_problem)
             .or_failed_to("foo")
     }
 
@@ -136,7 +173,7 @@ mod tests {
     fn test_option_errors_unknown() {
         let err: Result<(), Option<io::Error>> = Err(None);
         err
-            .map_err(OptionToProblem::unwrap_problem)
+            .map_err(OptionErrorToProblem::to_problem)
             .or_failed_to("foo")
     }
 
@@ -147,5 +184,22 @@ mod tests {
         err
             .to_problem()
             .or_failed_to("foo")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: nothing here")]
+    fn test_result_ok_or_problem() {
+        None
+            .ok_or_problem("nothing here")
+            .or_failed_to("foo")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: omg!")]
+    fn test_result_iter_or_failed_to() {
+        let results = vec![Ok(1u32), Ok(2u32), Err("omg!")];
+        let _ok = results.into_iter()
+            .or_failed_to("foo")
+            .collect::<Vec<_>>();
     }
 }

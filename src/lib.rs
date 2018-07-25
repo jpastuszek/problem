@@ -117,6 +117,15 @@ impl<O, E> FailedTo<O> for Result<O, E> where E: Display {
     }
 }
 
+impl<O> FailedTo<O> for Option<O> {
+    fn or_failed_to(self, msg: impl Display) -> O {
+        match self {
+            None => panic!("Failed to {}", msg),
+            Some(ok) => ok
+        }
+    }
+}
+
 pub struct ProblemIter<I> {
     inner: I,
     message: String
@@ -158,6 +167,20 @@ mod tests {
             .problem_while("processing input data")
             .problem_while("processing object")
             .or_failed_to("complete processing task")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo due to: boom!")]
+    fn test_result() {
+        Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
+            .or_failed_to("foo")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to foo")]
+    fn test_option() {
+        None
+            .or_failed_to("foo")
     }
 
     #[test]

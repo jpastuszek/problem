@@ -30,24 +30,26 @@ impl Display for Problem {
     }
 }
 
-// Expeced more implicit convertion
+/// Every type implementing Error trait can implicitly be converted to Problem via ? operator
 impl<E> From<E> for Problem where E: Error {
     fn from(error: E) -> Problem {
         Problem::cause(error)
     }
 }
 
-/// Explicit conversion from anything that has ToString and via this Display implemented
+/// Explicit convertion to Problem
 pub trait ToProblem {
     fn to_problem(self) -> Problem;
 }
 
+/// T that has Display or ToString implemented can be converted to Problem
 impl<T> ToProblem for T where T: ToString {
     fn to_problem(self) -> Problem {
         Problem::cause(self)
     }
 }
 
+/// Option of T that has Display or ToString implemented can be converted to Problem that displays <unknown error> for None variant
 pub trait OptionErrorToProblem {
     fn to_problem(self) -> Problem;
 }
@@ -58,26 +60,29 @@ impl<E> OptionErrorToProblem for Option<E> where E: ToProblem {
     }
 }
 
+/// Mapping Result with error to Result with Problem
 pub trait ResultToProblem<O> {
-    fn to_problem(self) -> Result<O, Problem>;
+    fn map_problem(self) -> Result<O, Problem>;
 }
 
 impl<O, E> ResultToProblem<O> for Result<O, E> where E: ToProblem {
-    fn to_problem(self) -> Result<O, Problem> {
+    fn map_problem(self) -> Result<O, Problem> {
         self.map_err(|e| e.to_problem())
     }
 }
 
+/// Mapping Result with Opiton<Error> to Result with Problem
 pub trait ResultOptionToProblem<O> {
-    fn to_problem(self) -> Result<O, Problem>;
+    fn map_problem(self) -> Result<O, Problem>;
 }
 
 impl<O, E> ResultOptionToProblem<O> for Result<O, Option<E>> where E: ToProblem {
-    fn to_problem(self) -> Result<O, Problem> {
+    fn map_problem(self) -> Result<O, Problem> {
         self.map_err(OptionErrorToProblem::to_problem)
     }
 }
 
+/// Map Option to Result with Problem
 pub trait OptionToProblem<O> {
     fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem> where M: ToString;
 }
@@ -88,22 +93,23 @@ impl<O> OptionToProblem<O> for Option<O> {
     }
 }
 
+/// Add context to Result with Problem or that can be implicityl mappet to one
 pub trait ProblemWhile<O> {
     fn problem_while(self, msg: impl Display) -> Result<O, Problem>;
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem> where F: FnOnce() -> M, M: Display;
 }
 
-impl<O> ProblemWhile<O> for Result<O, Problem> {
+impl<O, E> ProblemWhile<O> for Result<O, E> where E: Into<Problem> {
     fn problem_while(self, msg: impl Display) -> Result<O, Problem> {
-        self.map_err(|err| err.while_context(msg))
+        self.map_err(|err| err.into().while_context(msg))
     }
 
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem> where F: FnOnce() -> M, M: Display {
-        self.map_err(|err| err.while_context(msg()))
+        self.map_err(|err| err.into().while_context(msg()))
     }
 }
 
-/// Extension of Result that allows program to panic with Display message on Err handy for fata application errors that are not bugs
+/// Extension of Result that allows program to panic with Display message on Err for fata application errors that are not bugs
 pub trait FailedTo<O> {
     fn or_failed_to(self, msg: impl Display) -> O;
 }
@@ -126,6 +132,7 @@ impl<O> FailedTo<O> for Option<O> {
     }
 }
 
+/// Iterator that will panic on first error with message displaying Display formatted message
 pub struct ProblemIter<I> {
     inner: I,
     message: String
@@ -139,12 +146,12 @@ impl<I, O, E> Iterator for ProblemIter<I> where I: Iterator<Item=Result<O, E>>, 
     }
 }
 
+/// Convert Iterator of Result<O, E> to iterator of O and panic on first E with problme message
 pub trait FailedToIter<O, E>: Sized {
     fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self>;
 }
 
 impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: Display {
-    /// Convert iterator or Result<O, E> to iterator of O and panic on first E with problme message
     fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self> {
         ProblemIter {
             inner: self,
@@ -162,7 +169,6 @@ mod tests {
     #[should_panic(expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got problem caused by: boom!")]
     fn test_integration() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
-            .to_problem()
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")
@@ -187,16 +193,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: boom!")]
     fn test_option_errors() {
         Err(Some(io::Error::new(io::ErrorKind::InvalidInput, "boom!")))
-            .map_err(OptionErrorToProblem::to_problem)
-            .or_failed_to("foo")
-    }
-
-    #[test]
-    #[should_panic(expected = "Failed to foo due to: <unknown error>")]
-    fn test_option_errors_unknown() {
-        let err: Result<(), Option<io::Error>> = Err(None);
-        err
-            .map_err(OptionErrorToProblem::to_problem)
+            .map_problem()
             .or_failed_to("foo")
     }
 
@@ -205,7 +202,7 @@ mod tests {
     fn test_result_option_errors_unknown() {
         let err: Result<(), Option<io::Error>> = Err(None);
         err
-            .to_problem()
+            .map_problem()
             .or_failed_to("foo")
     }
 

@@ -109,6 +109,16 @@ impl<O, E> ProblemWhile<O> for Result<O, E> where E: Into<Problem> {
     }
 }
 
+/// Executes closure with problem_while context
+pub fn in_context_of<O, M, B>(msg: M, body: B) -> Result<O, Problem> where M: Display, B: FnOnce() -> Result<O, Problem> {
+    body().problem_while(msg)
+}
+
+/// Executes closure with problem_while_with context
+pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem> where F: FnOnce() -> M, M: Display, B: FnOnce() -> Result<O, Problem> {
+    body().problem_while_with(msg)
+}
+
 /// Extension of Result that allows program to panic with Display message on Err for fata application errors that are not bugs
 pub trait FailedTo<O> {
     fn or_failed_to(self, msg: impl Display) -> O;
@@ -172,6 +182,13 @@ mod tests {
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")
+            .or_failed_to("complete processing task")
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to complete processing task due to: while doing stuff got problem caused by: boom!")]
+    fn test_in_context_of() {
+        in_context_of("doing stuff", || Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))?)
             .or_failed_to("complete processing task")
     }
 

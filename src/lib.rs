@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 use std::error::Error;
+use std::panic;
 
 /// Error type that is not supposed to be handled but reported, paniced on or ignored
 #[derive(Debug)]
@@ -168,6 +169,13 @@ impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: 
             message: msg.to_string()
         }
     }
+}
+
+/// Set panic hook so that when program panics it the Display version of error massage will be printed to stderr
+pub fn set_panic_hook() {
+    panic::set_hook(Box::new(|panic_info| {
+        eprintln!("{}", panic_info.payload().downcast_ref::<String>().unwrap());
+    }));
 }
 
 #[cfg(test)]

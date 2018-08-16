@@ -4,6 +4,7 @@
         "markdown",
         "latex",
         "plaintext",
-        "rust"
+        "rust",
+        "toml"
     ]
 }

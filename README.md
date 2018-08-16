@@ -24,8 +24,8 @@ In order to support conversion from types implementing `Error` trait it does not
 When converting other errors to `Problem` the `Display` message is produced of the original error and stored in `Problem` as cause message.
 Additionally `Problem` can also store message and another `Problem` which allows for nesting multiple contexts and problem causes.
 
-# Crating Problem
-There are multiple ways of crating `Problem` type.
+# Creating Problem
+There are multiple ways to crate `Problem` value.
 
 ## Directly
 Using `Problem::cause(msg)` function.
@@ -54,7 +54,7 @@ assert_eq!("oops".to_problem().to_string(), "oops");
 
 ## From Option
 Often when working with C libraries actual errors may be unknown and function `Result` will have `Option<impl Error>` for their `Err` variant type.
-`.to_problem()` method is implemented for `Option<E>` and will contain "<unknown error>" message for `None` variant.
+`.to_problem()` method is implemented for `Option<E>` and will contain "\<unknown error\>" message for `None` variant.
 
 ```rust,skt-problem
 let unknown: Option<&'static str> = None;

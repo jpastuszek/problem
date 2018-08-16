@@ -5,6 +5,7 @@ authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
 build = "build.rs"
 
 [dependencies]
+log = "0.4.3"
 
 [build-dependencies]
 skeptic = "0.13.3"

@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 use std::fmt::{self, Display};
 use std::error::Error;
 use std::panic;
@@ -172,9 +174,32 @@ impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: 
 }
 
 /// Set panic hook so that when program panics it the Display version of error massage will be printed to stderr
-pub fn set_panic_hook() {
+pub fn format_panic_to_stderr() {
     panic::set_hook(Box::new(|panic_info| {
-        eprintln!("{}", panic_info.payload().downcast_ref::<String>().unwrap());
+        if let Some(value) = panic_info.payload().downcast_ref::<String>() {
+            eprintln!("{}", value);
+        } else if let Some(value) = panic_info.payload().downcast_ref::<&str>() {
+            eprintln!("{}", value);
+        } else if let Some(value) = panic_info.payload().downcast_ref::<&Error>() {
+            eprintln!("{}", value);
+        } else {
+            eprintln!("Got panic with unsupported type: {:?}", panic_info);
+        }
+    }));
+}
+
+/// Set panic hook so that when program panics it the Display version of error massage will be logged with error! macro
+pub fn format_panic_to_error_log() {
+    panic::set_hook(Box::new(|panic_info| {
+        if let Some(value) = panic_info.payload().downcast_ref::<String>() {
+            error!("{}", value);
+        } else if let Some(value) = panic_info.payload().downcast_ref::<&str>() {
+            error!("{}", value);
+        } else if let Some(value) = panic_info.payload().downcast_ref::<&Error>() {
+            error!("{}", value);
+        } else {
+            error!("Got panic with unsupported type: {:?}", panic_info);
+        }
     }));
 }
 

@@ -4,7 +4,7 @@ use std::fmt::{self, Display};
 use std::error::Error;
 use std::panic;
 
-/// Error type that is not supposed to be handled but reported, paniced on or ignored
+/// Error type that is not supposed to be handled but reported, panicked on or ignored
 #[derive(Debug)]
 pub enum Problem {
     Cause(String),
@@ -40,7 +40,7 @@ impl<E> From<E> for Problem where E: Error {
     }
 }
 
-/// Explicit convertion to Problem
+/// Explicit conversion to Problem
 pub trait ToProblem {
     fn to_problem(self) -> Problem;
 }
@@ -74,7 +74,7 @@ impl<O, E> ResultToProblem<O> for Result<O, E> where E: ToProblem {
     }
 }
 
-/// Mapping Result with Opiton<Error> to Result with Problem
+/// Mapping Result with Option<Error> to Result with Problem
 pub trait ResultOptionToProblem<O> {
     fn map_problem(self) -> Result<O, Problem>;
 }
@@ -96,7 +96,7 @@ impl<O> OptionToProblem<O> for Option<O> {
     }
 }
 
-/// Add context to Result with Problem or that can be implicityl mappet to one
+/// Add context to Result with Problem or that can be implicitly mapped to one
 pub trait ProblemWhile<O> {
     fn problem_while(self, msg: impl Display) -> Result<O, Problem>;
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem> where F: FnOnce() -> M, M: Display;
@@ -122,7 +122,7 @@ pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem> whe
     body().problem_while_with(msg)
 }
 
-/// Extension of Result that allows program to panic with Display message on Err for fata application errors that are not bugs
+/// Extension of Result that allows program to panic with Display message on Err for fatal application errors that are not bugs
 pub trait FailedTo<O> {
     fn or_failed_to(self, msg: impl Display) -> O;
 }
@@ -159,7 +159,7 @@ impl<I, O, E> Iterator for ProblemIter<I> where I: Iterator<Item=Result<O, E>>, 
     }
 }
 
-/// Convert Iterator of Result<O, E> to iterator of O and panic on first E with problme message
+/// Convert Iterator of Result<O, E> to iterator of O and panic on first E with problem message
 pub trait FailedToIter<O, E>: Sized {
     fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self>;
 }

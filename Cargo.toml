@@ -3,6 +3,11 @@ name = "problem"
 version = "0.1.0"
 authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
 build = "build.rs"
+repository = "https://github.com/jpastuszek/problem"
+readme = "README.md"
+keywords = ["error"]
+categories = ["command-line-interface"]
+license = "MIT"
 
 [dependencies]
 log = "0.4.3"

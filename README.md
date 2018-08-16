@@ -2,7 +2,7 @@ The aim of this library is to support writing command line programs in Rust by s
 
 It introduces `Problem` type which can be used on high level APIs for which error handling boils down to:
 * reporting error message (e.g. log with `error!` macro),
-* aborting program on error (e.g. using `panic!` macro),
+* aborting program on error other than a bug (e.g. using `panic!` macro),
 * ignoring error.
 
 # Goals
@@ -130,13 +130,14 @@ assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo g
 
 # Aborting program on Problem
 `panic!(msg, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
-This library provides function `set_panic_hook()` to set up hook that will use `eprintln!("{}", message)` to report panics.
+This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
+Function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
 
 ## Panicking on Result with Problem
 Similarly to `.expect(message)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` with `Display` formatted message when called on `Err` variant of `Result` with error type implementing `Display` trait.
 
 ```rust,should_panic,skt-problem
-set_panic_hook();
+format_panic_to_stderr();
 
 // Prints message: Failed to convert string due to: invalid utf-8 sequence of 1 bytes from index 2
 let _s = String::from_utf8(vec![0, 123, 255]).or_failed_to("convert string");
@@ -146,7 +147,7 @@ let _s = String::from_utf8(vec![0, 123, 255]).or_failed_to("convert string");
 Similarly to `.ok_or(error)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on `None` variant of `Option` type.
 
 ```rust,should_panic,skt-problem
-set_panic_hook();
+format_panic_to_stderr();
 let nothing: Option<&'static str> = None;
 
 // Prints message: Failed to get something
@@ -157,7 +158,7 @@ let _s = nothing.or_failed_to("get something");
 Method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on iterators with `Result` item when first `Err` is encountered otherwise unwrapping the `Ok` value.
 
 ```rust,should_panic,skt-problem
-set_panic_hook();
+format_panic_to_stderr();
 
 let results = vec![Ok(1u32), Ok(2u32), Err("oops")];
 

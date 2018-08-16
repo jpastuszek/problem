@@ -22,7 +22,7 @@ It introduces `Problem` type which can be used on high level APIs for which erro
 `Problem` type is core of this library. It is basically a wrapper around `String`. 
 In order to support conversion from types implementing `Error` trait it does not implement this trait.
 When converting other errors to `Problem` the `Display` message is produced of the original error and stored in `Problem` as cause message.
-Additionally `Problem` can also store message and another `Problme` which allows for nesting multiple contexts and problem causes.
+Additionally `Problem` can also store message and another `Problem` which allows for nesting multiple contexts and problem causes.
 
 # Crating Problem
 There are multiple ways of crating `Problem` type.

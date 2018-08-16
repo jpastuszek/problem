@@ -73,7 +73,7 @@ let res: Result<(), &'static str> = Err("oops");
 assert_eq!(res.map_problem().unwrap_err().to_string(), "oops");
 ```
 
-## By converting Option to Result
+## By conversion of Option to Result
 `Option<T>` can be converted into `Result<T, Problem>` with `.ok_or_problem(message)` function.
 
 ```rust,skt-problem

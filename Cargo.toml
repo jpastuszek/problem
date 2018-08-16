@@ -2,5 +2,12 @@
 name = "problem"
 version = "0.1.0"
 authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
+
+[build-dependencies]
+skeptic = "0.13.3"
+
+[dev-dependencies]
+skeptic = "0.13.3"

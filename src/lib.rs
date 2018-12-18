@@ -1,3 +1,4 @@
+#[cfg(feature = "log-panic")]
 #[macro_use]
 extern crate log;
 use std::fmt::{self, Display};
@@ -189,6 +190,7 @@ pub fn format_panic_to_stderr() {
 }
 
 /// Set panic hook so that when program panics it the Display version of error massage will be logged with error! macro
+#[cfg(feature = "log-panic")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {
         if let Some(value) = panic_info.payload().downcast_ref::<String>() {

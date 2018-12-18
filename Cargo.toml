@@ -1,7 +1,7 @@
 [package]
 name = "problem"
 version = "0.1.1-alpha.0"
-authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
+authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
 description = "Error handling for command line applications"
 build = "build.rs"
 repository = "https://github.com/jpastuszek/problem"
@@ -10,8 +10,12 @@ keywords = ["error"]
 categories = ["command-line-interface"]
 license = "MIT"
 
+[features]
+default = ["log-panic"]
+log-panic = ["log"]
+
 [dependencies]
-log = "0.4.3"
+log = { version = "0.4.3", optional = true }
 
 [build-dependencies]
 skeptic = "0.13.3"

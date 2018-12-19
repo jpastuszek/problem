@@ -174,18 +174,32 @@ impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: 
     }
 }
 
+fn format_panic(panic: &std::panic::PanicInfo) -> String {
+    let message = if let Some(value) = panic.payload().downcast_ref::<String>() {
+        format!("{}", value)
+    } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
+        format!("{}", value)
+    } else if let Some(value) = panic.payload().downcast_ref::<&Error>() {
+        format!("{} ({:?})", value, value)
+    } else {
+        format!("{:?}", panic)
+    };
+
+    let location = panic.location().map(|location| {
+        format!("{}:{}:{}", location.file(), location.line(), location.column())
+    });
+
+    if let Some(location) = location {
+        format!("{} (in {})", message, location)
+    } else {
+        message
+    }
+}
+
 /// Set panic hook so that when program panics it the Display version of error massage will be printed to stderr
 pub fn format_panic_to_stderr() {
     panic::set_hook(Box::new(|panic_info| {
-        if let Some(value) = panic_info.payload().downcast_ref::<String>() {
-            eprintln!("{}", value);
-        } else if let Some(value) = panic_info.payload().downcast_ref::<&str>() {
-            eprintln!("{}", value);
-        } else if let Some(value) = panic_info.payload().downcast_ref::<&Error>() {
-            eprintln!("{}", value);
-        } else {
-            eprintln!("Got panic with unsupported type: {:?}", panic_info);
-        }
+        eprintln!("Fatal error: {}", format_panic(panic_info));
     }));
 }
 
@@ -193,15 +207,7 @@ pub fn format_panic_to_stderr() {
 #[cfg(feature = "log-panic")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {
-        if let Some(value) = panic_info.payload().downcast_ref::<String>() {
-            error!("{}", value);
-        } else if let Some(value) = panic_info.payload().downcast_ref::<&str>() {
-            error!("{}", value);
-        } else if let Some(value) = panic_info.payload().downcast_ref::<&Error>() {
-            error!("{}", value);
-        } else {
-            error!("Got panic with unsupported type: {:?}", panic_info);
-        }
+        error!("{}", format_panic(panic_info));
     }));
 }
 
@@ -273,5 +279,12 @@ mod tests {
         let _ok = results.into_iter()
             .or_failed_to("foo")
             .collect::<Vec<_>>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_format_stderr() {
+        format_panic_to_stderr();
+        panic!("foo bar!");
     }
 }

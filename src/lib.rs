@@ -8,26 +8,34 @@ use std::panic;
 /// Error type that is not supposed to be handled but reported, panicked on or ignored
 #[derive(Debug)]
 pub enum Problem {
-    Cause(String),
+    Cause(String, Option<String>),
     Context(String, Box<Problem>),
 }
 
 impl Problem {
     pub fn cause(msg: impl ToString) -> Problem {
-        Problem::Cause(msg.to_string())
+        Problem::Cause(msg.to_string(), format_backtrace())
     }
 
     pub fn while_context(self, msg: impl ToString) -> Problem {
         Problem::Context(msg.to_string(), Box::new(self))
+    }
+
+    pub fn backtrace(&self) -> Option<&str> {
+        match self {
+            &Problem::Cause(_, ref backtrace) => backtrace.as_ref().map(String::as_str),
+            &Problem::Context(_,  ref problem) => problem.backtrace(),
+        }
     }
 }
 
 impl Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Problem::Cause(ref msg) => write!(f, "{}", msg),
+            &Problem::Cause(ref msg, None) => write!(f, "{}", msg),
+            &Problem::Cause(ref msg, Some(ref backtrace)) => write!(f, "{}\n\t--- Cause\n{}", msg, backtrace),
             &Problem::Context(ref msg, ref inner) => match inner.as_ref() {
-                &Problem::Cause(ref cause) => write!(f, "while {} got problem caused by: {}", msg, cause),
+                cause @ &Problem::Cause(..) => write!(f, "while {} got problem caused by: {}", msg, cause),
                 inner => write!(f, "while {}, {}", msg, inner),
             }
         }
@@ -182,39 +190,51 @@ fn format_backtrace() -> Option<String> {
 #[cfg(feature = "backtrace")]
 #[inline(always)]
 fn format_backtrace() -> Option<String> {
-    let mut backtrace = String::new();
+    if let Ok("1") = std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str) {
+        let mut backtrace = String::new();
 
-    backtrace::trace(|frame| {
-        let ip = frame.ip();
-        //let symbol_address = frame.symbol_address();
+        backtrace::trace(|frame| {
+            let ip = frame.ip();
+            //let symbol_address = frame.symbol_address();
 
-        backtrace.push_str("\tat ");
+            backtrace.push_str("\tat ");
 
-        backtrace::resolve(ip, |symbol| {
-            if let Some(name) = symbol.name() {
-                backtrace.push_str(&name.to_string());
-            }
-            backtrace.push_str("(");
-            if let Some(filename) = symbol.filename() {
-                backtrace.push_str(&filename.display().to_string());
-            }
-            if let Some(lineno) = symbol.lineno() {
-                backtrace.push_str(":");
-                backtrace.push_str(&lineno.to_string());
-            }
-            backtrace.push_str(")");
+            backtrace::resolve(ip, |symbol| {
+                if let Some(name) = symbol.name() {
+                    backtrace.push_str(&name.to_string());
+                }
+                backtrace.push_str("(");
+                if let Some(filename) = symbol.filename() {
+                    backtrace.push_str(&filename.display().to_string());
+                }
+                if let Some(lineno) = symbol.lineno() {
+                    backtrace.push_str(":");
+                    backtrace.push_str(&lineno.to_string());
+                }
+                backtrace.push_str(")");
+            });
+
+            backtrace.push_str("\n");
+            true // keep going to the next frame
         });
 
-        backtrace.push_str("\n");
-        true // keep going to the next frame
-    });
+        backtrace.pop(); // last \n
 
-    Some(backtrace)
+        Some(backtrace)
+    } else {
+        None
+    }
 }
 
 fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> String {
     let mut message = String::new();
-    
+
+    if let Some(location) = panic.location() {
+        message.push_str("(in ");
+        message.push_str(&format!("{}:{}:{}", location.file(), location.line(), location.column()));
+        message.push_str(") ");
+    };
+
     if let Some(value) = panic.payload().downcast_ref::<String>() {
         message.push_str(&value);
     } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
@@ -225,14 +245,8 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
         message.push_str(&format!("{:?}", panic));
     };
 
-    if let Some(location) = panic.location() {
-        message.push_str(" (in ");
-        message.push_str(&format!("{}:{}:{}", location.file(), location.line(), location.column()));
-        message.push_str(")");
-    };
-
     if let Some(backtrace) = backtrace {
-        message.push_str("\n");
+        message.push_str("\n\t--- Panicked\n");
         message.push_str(&backtrace);
     };
 
@@ -331,5 +345,30 @@ mod tests {
     fn test_panic_format_stderr() {
         format_panic_to_stderr();
         panic!("foo bar!");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_format_stderr_problem() {
+        format_panic_to_stderr();
+        let result: Result<(), Problem> = Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
+            .problem_while("parsing input")
+            .problem_while("processing input data")
+            .problem_while("processing object");
+
+        result.or_failed_to("complete processing task");
+    }
+
+    #[test]
+    #[cfg(feature = "backtrace")]
+    fn test_problem_backtrace() {
+        let p = Problem::cause("foo").while_context("bar").while_context("baz");
+
+        if let Ok("1") = std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str) {
+            assert!(p.backtrace().is_some());
+            println!("{}", p.backtrace().unwrap());
+        } else {
+            assert!(p.backtrace().is_none());
+        }
     }
 }

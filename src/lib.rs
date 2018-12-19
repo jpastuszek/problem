@@ -230,9 +230,7 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
     let mut message = String::new();
 
     if let Some(location) = panic.location() {
-        message.push_str("(in ");
-        message.push_str(&format!("{}:{}:{}", location.file(), location.line(), location.column()));
-        message.push_str(") ");
+        message.push_str(&format!("Panicked in {}:{}:{}: ", location.file(), location.line(), location.column()));
     };
 
     if let Some(value) = panic.payload().downcast_ref::<String>() {

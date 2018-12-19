@@ -11,11 +11,12 @@ categories = ["command-line-interface"]
 license = "MIT"
 
 [features]
-default = ["log-panic"]
+default = ["log-panic", "backtrace"]
 log-panic = ["log"]
 
 [dependencies]
 log = { version = "0.4.3", optional = true }
+backtrace = { version = "0.3.13", optional = true }
 
 [build-dependencies]
 skeptic = "0.13.3"

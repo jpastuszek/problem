@@ -174,32 +174,76 @@ impl<I, O, E> FailedToIter<O, E> for I where I: Iterator<Item=Result<O, E>>, E: 
     }
 }
 
-fn format_panic(panic: &std::panic::PanicInfo) -> String {
-    let message = if let Some(value) = panic.payload().downcast_ref::<String>() {
-        format!("{}", value)
-    } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
-        format!("{}", value)
-    } else if let Some(value) = panic.payload().downcast_ref::<&Error>() {
-        format!("{} ({:?})", value, value)
-    } else {
-        format!("{:?}", panic)
-    };
+#[cfg(not(feature = "backtrace"))]
+fn format_backtrace() -> Option<String> {
+    None
+}
 
-    let location = panic.location().map(|location| {
-        format!("{}:{}:{}", location.file(), location.line(), location.column())
+#[cfg(feature = "backtrace")]
+#[inline(always)]
+fn format_backtrace() -> Option<String> {
+    let mut backtrace = String::new();
+
+    backtrace::trace(|frame| {
+        let ip = frame.ip();
+        //let symbol_address = frame.symbol_address();
+
+        backtrace.push_str("\tat ");
+
+        backtrace::resolve(ip, |symbol| {
+            if let Some(name) = symbol.name() {
+                backtrace.push_str(&name.to_string());
+            }
+            backtrace.push_str("(");
+            if let Some(filename) = symbol.filename() {
+                backtrace.push_str(&filename.display().to_string());
+            }
+            if let Some(lineno) = symbol.lineno() {
+                backtrace.push_str(":");
+                backtrace.push_str(&lineno.to_string());
+            }
+            backtrace.push_str(")");
+        });
+
+        backtrace.push_str("\n");
+        true // keep going to the next frame
     });
 
-    if let Some(location) = location {
-        format!("{} (in {})", message, location)
+    Some(backtrace)
+}
+
+fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> String {
+    let mut message = String::new();
+    
+    if let Some(value) = panic.payload().downcast_ref::<String>() {
+        message.push_str(&value);
+    } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
+        message.push_str(value);
+    } else if let Some(value) = panic.payload().downcast_ref::<&Error>() {
+        message.push_str(&format!("{} ({:?})", value, value));
     } else {
-        message
-    }
+        message.push_str(&format!("{:?}", panic));
+    };
+
+    if let Some(location) = panic.location() {
+        message.push_str(" (in ");
+        message.push_str(&format!("{}:{}:{}", location.file(), location.line(), location.column()));
+        message.push_str(")");
+    };
+
+    if let Some(backtrace) = backtrace {
+        message.push_str("\n");
+        message.push_str(&backtrace);
+    };
+
+    message
 }
 
 /// Set panic hook so that when program panics it the Display version of error massage will be printed to stderr
 pub fn format_panic_to_stderr() {
     panic::set_hook(Box::new(|panic_info| {
-        eprintln!("Fatal error: {}", format_panic(panic_info));
+        let backtrace = format_backtrace();
+        eprintln!("Fatal error: {}", format_panic(panic_info, backtrace));
     }));
 }
 
@@ -207,7 +251,8 @@ pub fn format_panic_to_stderr() {
 #[cfg(feature = "log-panic")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {
-        error!("{}", format_panic(panic_info));
+        let backtrace = format_backtrace();
+        error!("{}", format_panic(panic_info, backtrace));
     }));
 }
 

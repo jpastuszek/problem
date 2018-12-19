@@ -45,7 +45,7 @@ fn foo() -> Result<String, Problem> {
     Ok(str)
 }
 
-let _s = foo().or_failed_to("crate a string"); // Fatal error: Panicked in src/lib.rs:464:25: Failed to crate a string due to: invalid utf-8 sequence of 1 bytes from index 2
+let _s = foo().or_failed_to("create a string"); // Fatal error: Panicked in src/lib.rs:464:25: Failed to crate a string due to: invalid utf-8 sequence of 1 bytes from index 2
 ```
 
 For more examples see crate documentation at [docs.rs](https://docs.rs/problem).

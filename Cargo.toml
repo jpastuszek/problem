@@ -1,6 +1,6 @@
 [package]
 name = "problem"
-version = "1.0.0"
+version = "1.0.1-alpha.0"
 authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
 description = "Error handling for command line applications"
 build = "build.rs"

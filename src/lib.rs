@@ -35,6 +35,34 @@ fn foo() -> Result<String, Problem> {
 assert_eq!(foo().unwrap_err().to_string(), "invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
+If Error cause or source is available it will be shown as well.
+```rust
+use problem::prelude::*;
+use std::fmt;
+use std::error::Error;
+
+#[derive(Debug)]
+struct ErrorWithCause(std::string::FromUtf8Error);
+
+impl fmt::Display for ErrorWithCause {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "bad things happened")
+    }
+}
+
+impl Error for ErrorWithCause {
+    fn cause(&self) -> Option<&dyn Error> {
+        Some(&self.0)
+    }
+}
+
+fn foo() -> Result<String, Problem> {
+    let str = String::from_utf8(vec![0, 123, 255]).map_err(ErrorWithCause)?;
+    Ok(str)
+}
+assert_eq!(foo().unwrap_err().to_string(), "bad things happened; caused by: invalid utf-8 sequence of 1 bytes from index 2");
+```
+
 ## Explicitly
 Any type that implements `ToString` or `Display` can be converted to `Problem` with `.to_problem()`.
 
@@ -327,7 +355,12 @@ where
     E: Error,
 {
     fn from(error: E) -> Problem {
-        Problem::cause(error)
+        let message = if let Some(cause) = error.cause() {
+            format!("{}; caused by: {}", error.to_string(), cause.to_string())
+        } else {
+            error.to_string()
+        };
+        Problem::cause(message)
     }
 }
 

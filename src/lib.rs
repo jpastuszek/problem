@@ -248,8 +248,8 @@ use problem::prelude::*;
 # fn test_with_log_feature() {
 let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
 
-// Logs warning messages: Continuing with error oops
-// Logs warning messages: Continuing with error oh
+// Logs warning message: Continuing with error oops
+// Logs warning message: Continuing with error oh
 let ok: Vec<u32> = results.into_iter()
     .ok_or_log_warn()
     .flatten()

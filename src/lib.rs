@@ -236,6 +236,26 @@ let _ok: Vec<u32> = results.into_iter()
     .collect();
 ```
 
+# Logging errors
+If `log` feature is enabled (default) function `ok_or_log_warn()` or `ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert 
+`Result` into `Option` while logging `Err` wariants as warnings or errors.
+When used on iterators `flatten()` addaptor can be used to filter out all `Err` variant items after they were logged and converted to `None`.
+
+```rust
+use problem::prelude::*;
+
+let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
+
+// Logs warning messages: Continuing with error oops
+// Logs warning messages: Continuing with error oh
+let ok: Vec<u32> = results.into_iter()
+    .ok_or_log_warn()
+    .flatten()
+    .collect();
+
+assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
+```
+
 # Backtraces
 When compiled with `backtrace` feature (default) formatting of backtraces for `Problem` cause and `panic!` locations can be enabled via `RUST_BACKTRACE=1` environment variable.
 

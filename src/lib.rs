@@ -342,7 +342,7 @@ impl Display for Problem {
             }
             &Problem::Context(ref msg, ref inner) => match inner.as_ref() {
                 cause @ &Problem::Cause(..) => {
-                    write!(f, "while {} got problem caused by: {}", msg, cause)
+                    write!(f, "while {} got error caused by: {}", msg, cause)
                 }
                 inner => write!(f, "while {}, {}", msg, inner),
             },

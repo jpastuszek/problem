@@ -186,7 +186,7 @@ assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo g
 `panic!(msg, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
 This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
 
-If `log-panic` feature is enabled (default) function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
+If `log` feature is enabled (default) function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
 
 ```noformat
 ERROR: Panicked in libcore/slice/mod.rs:2334:5: index 18492 out of range for slice of length 512
@@ -293,7 +293,7 @@ use problem::prelude::*;
 Problem::cause("foo").backtrace(); // Some(<&str>)
 ```
  */
-#[cfg(feature = "log-panic")]
+#[cfg(feature = "log")]
 #[macro_use]
 extern crate log;
 use std::error::Error;
@@ -306,6 +306,7 @@ pub mod prelude {
         in_context_of, in_context_of_with, FailedTo, FailedToIter, OptionErrorToProblem,
         OptionToProblem, Problem, ProblemWhile, ResultOptionToProblem, ResultToProblem, ToProblem,
     };
+    pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
 /// Error type that is not supposed to be handled but reported, panicked on or ignored
@@ -547,6 +548,105 @@ where
     }
 }
 
+#[cfg(feature = "log")]
+pub mod logged {
+    use super::*;
+    use log::{warn, error};
+
+    /// Extension of Result that allows program to log on Err with Display message for application errors that are not critical
+    pub trait OkOrLog<O> {
+        fn ok_or_log_warn(self) -> Option<O>;
+        fn ok_or_log_error(self) -> Option<O>;
+    }
+
+    impl<O, E> OkOrLog<O> for Result<O, E>
+    where
+        E: Display,
+    {
+        fn ok_or_log_warn(self) -> Option<O> {
+            match self {
+                Err(err) => {
+                    warn!("Continuing with error {}", err);
+                    None
+                },
+                Ok(ok) => Some(ok),
+            }
+        }
+
+        fn ok_or_log_error(self) -> Option<O> {
+            match self {
+                Err(err) => {
+                    error!("Continuing with error {}", err);
+                    None
+                },
+                Ok(ok) => Some(ok),
+            }
+        }
+    }
+
+    /// Iterator that will log as warn Display formatted message on Err and skip to next item; it can be flattened to skip failed items
+    pub struct ProblemWarnLoggingIter<I> {
+        inner: I,
+    }
+
+    impl<I, O, E> Iterator for ProblemWarnLoggingIter<I>
+    where
+        I: Iterator<Item = Result<O, E>>,
+        E: Display,
+    {
+        type Item = Option<O>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.inner
+                .next()
+                .map(|res| res.ok_or_log_warn())
+        }
+    }
+
+    /// Iterator that will log as error Display formatted message on Err and skip to next item; it can be flattened to skip failed items
+    pub struct ProblemErrorLoggingIter<I> {
+        inner: I,
+    }
+
+    impl<I, O, E> Iterator for ProblemErrorLoggingIter<I>
+    where
+        I: Iterator<Item = Result<O, E>>,
+        E: Display,
+    {
+        type Item = Option<O>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.inner
+                .next()
+                .map(|res| res.ok_or_log_error())
+        }
+    }
+
+    /// Convert Iterator of Result<O, E> to iterator of Option<O> and log any Err variants
+    pub trait OkOrLogIter<O, E>: Sized {
+        fn ok_or_log_warn(self) -> ProblemWarnLoggingIter<Self>;
+        fn ok_or_log_error(self) -> ProblemErrorLoggingIter<Self>;
+    }
+
+    impl<I, O, E> OkOrLogIter<O, E> for I
+    where
+        I: Iterator<Item = Result<O, E>>,
+        E: Display,
+    {
+        fn ok_or_log_warn(self) -> ProblemWarnLoggingIter<Self> {
+            ProblemWarnLoggingIter {
+                inner: self,
+            }
+        }
+
+        fn ok_or_log_error(self) -> ProblemErrorLoggingIter<Self> {
+            ProblemErrorLoggingIter {
+                inner: self,
+            }
+        }
+    }
+}
+
 #[cfg(not(feature = "backtrace"))]
 fn format_backtrace() -> Option<String> {
     None
@@ -630,7 +730,7 @@ pub fn format_panic_to_stderr() {
 }
 
 /// Set panic hook so that when program panics it will log the Display version of error massage with error! macro
-#[cfg(feature = "log-panic")]
+#[cfg(feature = "log")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {
         let backtrace = format_backtrace();

@@ -11,8 +11,7 @@ categories = ["command-line-interface"]
 license = "MIT"
 
 [features]
-default = ["log-panic", "backtrace"]
-log-panic = ["log"]
+default = ["log", "backtrace"]
 
 [dependencies]
 log = { version = "0.4.3", optional = true }

@@ -244,16 +244,22 @@ When used on iterators `flatten()` addaptor can be used to filter out all `Err` 
 ```rust
 use problem::prelude::*;
 
-let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
+#[cfg(feature = "log")]
+fn test_with_log_feature() {
+    let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
 
-// Logs warning messages: Continuing with error oops
-// Logs warning messages: Continuing with error oh
-let ok: Vec<u32> = results.into_iter()
-    .ok_or_log_warn()
-    .flatten()
-    .collect();
+    // Logs warning messages: Continuing with error oops
+    // Logs warning messages: Continuing with error oh
+    let ok: Vec<u32> = results.into_iter()
+        .ok_or_log_warn()
+        .flatten()
+        .collect();
 
-assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
+    assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
+}
+
+#[cfg(feature = "log")]
+test_with_log_feature();
 ```
 
 # Backtraces

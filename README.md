@@ -30,7 +30,7 @@ fn foo() -> Result<String, Problem> {
 
 let result = foo().problem_while("creating string");
 
-assert_eq!(result.unwrap_err().to_string(), "while creating string got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(result.unwrap_err().to_string(), "while creating string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 Handling fatal errors with panic and `Problem::or_failed_to`.

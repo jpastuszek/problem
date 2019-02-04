@@ -118,7 +118,7 @@ use problem::prelude::*;
 
 let res = String::from_utf8(vec![0, 123, 255]);
 
-assert_eq!(res.problem_while("creating string").unwrap_err().to_string(), "while creating string got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(res.problem_while("creating string").unwrap_err().to_string(), "while creating string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 The `_with` variant can be used to delay computation of error message to the moment when actual `Err` variant has occurred.
@@ -128,7 +128,7 @@ use problem::prelude::*;
 
 let res = String::from_utf8(vec![0, 123, 255]);
 
-assert_eq!(res.problem_while_with(|| "creating string").unwrap_err().to_string(), "while creating string got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(res.problem_while_with(|| "creating string").unwrap_err().to_string(), "while creating string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 ## Wrapped
@@ -145,7 +145,7 @@ let res = in_context_of("processing string", || {
     Ok(())
 });
 
-assert_eq!(res.unwrap_err().to_string(), "while processing string got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(res.unwrap_err().to_string(), "while processing string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 The `_with` variant can be used to delay computation of error message to the moment when actual `Err` variant has occurred.
@@ -159,7 +159,7 @@ let res = in_context_of_with(|| "processing string", || {
     Ok(())
 });
 
-assert_eq!(res.unwrap_err().to_string(), "while processing string got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(res.unwrap_err().to_string(), "while processing string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 ## Nested context
@@ -179,7 +179,7 @@ let res = in_context_of("doing stuff", || {
     Ok(())
 });
 
-assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo got problem caused by: invalid utf-8 sequence of 1 bytes from index 2");
+assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
 # Aborting program on Problem
@@ -240,7 +240,7 @@ let _ok: Vec<u32> = results.into_iter()
 When compiled with `backtrace` feature (default) formatting of backtraces for `Problem` cause and `panic!` locations can be enabled via `RUST_BACKTRACE=1` environment variable.
 
 ```noformat
-Fatal error: Panicked in src/lib.rs:189:25: Failed to complete processing task due to: while processing object, while processing input data, while parsing input got problem caused by: boom!
+Fatal error: Panicked in src/lib.rs:189:25: Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!
         --- Cause
         at backtrace::backtrace::trace_unsynchronized::h7e40b70e3b5d7257(/Users/wcc/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57)
         at problem::Problem::cause::h8e82f78cae379944(/Users/wcc/Documents/problem/src/lib.rs:17)
@@ -306,6 +306,8 @@ pub mod prelude {
         in_context_of, in_context_of_with, FailedTo, FailedToIter, OptionErrorToProblem,
         OptionToProblem, Problem, ProblemWhile, ResultOptionToProblem, ResultToProblem, ToProblem,
     };
+
+    #[cfg(feature = "log")]
     pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
@@ -745,7 +747,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got problem caused by: boom!"
+        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!"
     )]
     fn test_integration() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
@@ -757,7 +759,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Failed to complete processing task due to: while doing stuff got problem caused by: boom!"
+        expected = "Failed to complete processing task due to: while doing stuff got error caused by: boom!"
     )]
     fn test_in_context_of() {
         in_context_of("doing stuff", || {

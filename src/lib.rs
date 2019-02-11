@@ -800,6 +800,21 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct Baz(Bar);
+
+    impl Display for Baz {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Baz error")
+        }
+    }
+
+    impl Error for Baz {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
     #[test]
     #[should_panic(
         expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!"
@@ -814,10 +829,10 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: Bar error; caused by: Foo error"
+        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: Baz error; caused by: Bar error; caused by: Foo error"
     )]
     fn test_integration_cause_chain() {
-        Err(Bar(Foo))
+        Err(Baz(Bar(Foo)))
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")
@@ -842,9 +857,9 @@ mod tests {
     }
     
     #[test]
-    #[should_panic(expected = "Failed to quix due to: Bar error; caused by: Foo error")]
+    #[should_panic(expected = "Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error")]
     fn test_result_cause_chain() {
-        Err(Bar(Foo)).or_failed_to("quix")
+        Err(Baz(Bar(Foo))).or_failed_to("quix")
     }
 
     #[test]

@@ -228,7 +228,7 @@ use problem::format_panic_to_stderr;
 
 format_panic_to_stderr();
 
-let results = vec![Ok(1u32), Ok(2u32), Err("oops")];
+let results = vec![Ok(1u32), Ok(2u32), Err("oops".to_problem())];
 
 // Prints message: Failed to collect numbers due to: oops
 let _ok: Vec<u32> = results.into_iter()
@@ -237,7 +237,7 @@ let _ok: Vec<u32> = results.into_iter()
 ```
 
 # Logging errors
-If `log` feature is enabled (default) function `ok_or_log_warn()` or `ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert 
+If `log` feature is enabled (default) function `ok_or_log_warn()` or `ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert
 `Result` into `Option` while logging `Err` wariants as warnings or errors.
 When used on iterators `flatten()` addaptor can be used to filter out all `Err` variant items after they were logged and converted to `None`.
 
@@ -246,7 +246,7 @@ use problem::prelude::*;
 
 # #[cfg(feature = "log")]
 # fn test_with_log_feature() {
-let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
+let results = vec![Ok(1u32), Ok(2), Err("oops".to_problem()), Ok(3), Err("oh".to_problem()), Ok(4)];
 
 // Logs warning message: Continuing with error oops
 // Logs warning message: Continuing with error oh
@@ -257,7 +257,7 @@ let ok: Vec<u32> = results.into_iter()
 
 assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
 # }
-# 
+#
 # #[cfg(feature = "log")]
 # test_with_log_feature();
 ```
@@ -345,14 +345,30 @@ pub enum Problem {
 }
 
 impl Problem {
+    /// Create `Problem` from any type implementing `ToString` or `Display`
     pub fn cause(msg: impl ToString) -> Problem {
         Problem::Cause(msg.to_string(), format_backtrace())
     }
 
+    /// Create `Problem` from type implement `Error` so that `Error::cause` is followed through
+    pub fn from_error(error: &dyn Error) -> Problem {
+        let message = if let Some(cause) = error.cause() {
+            // make sure we follow through the cause chain
+            let cause_problem: Problem = Problem::from_error(cause);
+            format!("{}; caused by: {}", error.to_string(), cause_problem)
+        } else {
+            error.to_string()
+        };
+
+        Problem::Cause(message, format_backtrace())
+    }
+
+    /// Add context information to this `Problem` instance
     pub fn while_context(self, msg: impl ToString) -> Problem {
         Problem::Context(msg.to_string(), Box::new(self))
     }
 
+    /// Get backtrace associated with this `Problem` instance if available
     pub fn backtrace(&self) -> Option<&str> {
         match self {
             &Problem::Cause(_, ref backtrace) => backtrace.as_ref().map(String::as_str),
@@ -384,12 +400,7 @@ where
     E: Error,
 {
     fn from(error: E) -> Problem {
-        let message = if let Some(cause) = error.cause() {
-            format!("{}; caused by: {}", error.to_string(), cause.to_string())
-        } else {
-            error.to_string()
-        };
-        Problem::cause(message)
+        Problem::from_error(&error)
     }
 }
 
@@ -519,11 +530,11 @@ pub trait FailedTo<O> {
 
 impl<O, E> FailedTo<O> for Result<O, E>
 where
-    E: Display,
+    E: Into<Problem>,
 {
     fn or_failed_to(self, msg: impl Display) -> O {
         match self {
-            Err(err) => panic!("Failed to {} due to: {}", msg, err),
+            Err(err) => panic!("Failed to {} due to: {}", msg, err.into()),
             Ok(ok) => ok,
         }
     }
@@ -547,7 +558,7 @@ pub struct ProblemIter<I> {
 impl<I, O, E> Iterator for ProblemIter<I>
 where
     I: Iterator<Item = Result<O, E>>,
-    E: Display,
+    E: Into<Problem>,
 {
     type Item = O;
 
@@ -566,7 +577,7 @@ pub trait FailedToIter<O, E>: Sized {
 impl<I, O, E> FailedToIter<O, E> for I
 where
     I: Iterator<Item = Result<O, E>>,
-    E: Display,
+    E: Into<Problem>,
 {
     fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self> {
         ProblemIter {
@@ -579,7 +590,7 @@ where
 #[cfg(feature = "log")]
 pub mod logged {
     use super::*;
-    use log::{warn, error};
+    use log::{error, warn};
 
     /// Extension of Result that allows program to log on Err with Display message for application errors that are not critical
     pub trait OkOrLog<O> {
@@ -589,14 +600,14 @@ pub mod logged {
 
     impl<O, E> OkOrLog<O> for Result<O, E>
     where
-        E: Display,
+        E: Into<Problem>,
     {
         fn ok_or_log_warn(self) -> Option<O> {
             match self {
                 Err(err) => {
-                    warn!("Continuing with error {}", err);
+                    warn!("Continuing with error {}", err.into());
                     None
-                },
+                }
                 Ok(ok) => Some(ok),
             }
         }
@@ -604,9 +615,9 @@ pub mod logged {
         fn ok_or_log_error(self) -> Option<O> {
             match self {
                 Err(err) => {
-                    error!("Continuing with error {}", err);
+                    error!("Continuing with error {}", err.into());
                     None
-                },
+                }
                 Ok(ok) => Some(ok),
             }
         }
@@ -620,14 +631,12 @@ pub mod logged {
     impl<I, O, E> Iterator for ProblemWarnLoggingIter<I>
     where
         I: Iterator<Item = Result<O, E>>,
-        E: Display,
+        E: Into<Problem>,
     {
         type Item = Option<O>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            self.inner
-                .next()
-                .map(|res| res.ok_or_log_warn())
+            self.inner.next().map(|res| res.ok_or_log_warn())
         }
     }
 
@@ -639,14 +648,12 @@ pub mod logged {
     impl<I, O, E> Iterator for ProblemErrorLoggingIter<I>
     where
         I: Iterator<Item = Result<O, E>>,
-        E: Display,
+        E: Into<Problem>,
     {
         type Item = Option<O>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            self.inner
-                .next()
-                .map(|res| res.ok_or_log_error())
+            self.inner.next().map(|res| res.ok_or_log_error())
         }
     }
 
@@ -659,18 +666,14 @@ pub mod logged {
     impl<I, O, E> OkOrLogIter<O, E> for I
     where
         I: Iterator<Item = Result<O, E>>,
-        E: Display,
+        E: Into<Problem>,
     {
         fn ok_or_log_warn(self) -> ProblemWarnLoggingIter<Self> {
-            ProblemWarnLoggingIter {
-                inner: self,
-            }
+            ProblemWarnLoggingIter { inner: self }
         }
 
         fn ok_or_log_error(self) -> ProblemErrorLoggingIter<Self> {
-            ProblemErrorLoggingIter {
-                inner: self,
-            }
+            ProblemErrorLoggingIter { inner: self }
         }
     }
 }
@@ -771,12 +774,50 @@ mod tests {
     use super::*;
     use std::io;
 
+    #[derive(Debug)]
+    struct Foo;
+
+    impl Display for Foo {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Foo error")
+        }
+    }
+
+    impl Error for Foo {}
+
+    #[derive(Debug)]
+    struct Bar(Foo);
+
+    impl Display for Bar {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Bar error")
+        }
+    }
+
+    impl Error for Bar {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
     #[test]
     #[should_panic(
         expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!"
     )]
     fn test_integration() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
+            .problem_while("parsing input")
+            .problem_while("processing input data")
+            .problem_while("processing object")
+            .or_failed_to("complete processing task")
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: Bar error; caused by: Foo error"
+    )]
+    fn test_integration_cause_chain() {
+        Err(Bar(Foo))
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")
@@ -798,6 +839,12 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: boom!")]
     fn test_result() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!")).or_failed_to("foo")
+    }
+    
+    #[test]
+    #[should_panic(expected = "Failed to quix due to: Bar error; caused by: Foo error")]
+    fn test_result_cause_chain() {
+        Err(Bar(Foo)).or_failed_to("quix")
     }
 
     #[test]
@@ -830,7 +877,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Failed to foo due to: omg!")]
     fn test_result_iter_or_failed_to() {
-        let results = vec![Ok(1u32), Ok(2u32), Err("omg!")];
+        let results = vec![Ok(1u32), Ok(2u32), Err("omg!".to_problem())];
         let _ok = results.into_iter().or_failed_to("foo").collect::<Vec<_>>();
     }
 

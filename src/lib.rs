@@ -14,16 +14,19 @@ Additionally `Problem` can also store message and another `Problem` which allows
 There are multiple ways to crate `Problem` value.
 
 ## Directly
-Using `Problem::cause(msg)` function.
+Using `Problem::from_error(error)` if `error` implements `Error` trait (via `Into<Box<dyn Error>>`).
+Using `Problem::from_message(msg)` for all types implementing `ToString` or `Display` traits.
 
 ```rust
 use problem::prelude::*;
 
-Problem::cause("foo");
+Problem::from_message("foo");
+Problem::from_error(std::io::Error::new(std::io::ErrorKind::InvalidInput, "boom!"));
+Problem::from_error(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "boom!")));
 ```
 
 ## Implicitly
-Types implementing `Error` trait can be converted to `Problem` via `From` trait so that `?` will work.
+Types implementing `Error` trait can be converted to `Problem` via `From` trait. `?` will automatically convert types implementing `Error` to `Problem`.
 
 ```rust
 use problem::prelude::*;
@@ -316,7 +319,7 @@ Formatted backtrace `&str` can be accessed via `Problem::backtrace` function tha
 ```rust
 use problem::prelude::*;
 
-Problem::cause("foo").backtrace(); // Some(<&str>)
+Problem::from_message("foo").backtrace(); // Some(<&str>)
 ```
  */
 #[cfg(feature = "log")]
@@ -352,19 +355,17 @@ pub enum Problem {
 }
 
 impl Problem {
-    #[deprecated(since = "3.1.0", note = "please use `from_string` instead")]
-    pub fn cause(msg: impl ToString) -> Problem {
-        Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
-    }
-
     /// Create `Problem` from any type implementing `ToString` or `Display`
     pub fn from_message(msg: impl ToString) -> Problem {
         Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
     }
 
-    /// Create `Problem` from type implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
-    pub fn from_error(error: Box<dyn Error>) -> Problem {
-        Problem::Cause(Cause::Error(error), format_backtrace())
+    /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
+    pub fn from_error<E>(error: E) -> Problem
+    where
+        E: Into<Box<dyn Error>>,
+    {
+        Problem::Cause(Cause::Error(error.into()), format_backtrace())
     }
 
     /// Add context information to this `Problem` instance
@@ -421,20 +422,12 @@ impl Display for Problem {
 }
 
 /// Every type implementing Error trait can implicitly be converted to Problem via ? operator
-// impl<E> From<E> for Problem
-// where
-//     E: Error,
-// {
-//     fn from(error: E) -> Problem {
-//         Problem::from_error(&error)
-//     }
-// }
 impl<E> From<E> for Problem
 where
-    E: Error + 'static,
+    E: Into<Box<dyn Error>>,
 {
     fn from(error: E) -> Problem {
-        Problem::from_error(Box::new(error))
+        Problem::from_error(error)
     }
 }
 
@@ -449,7 +442,7 @@ where
     T: ToString,
 {
     fn to_problem(self) -> Problem {
-        Problem::cause(self)
+        Problem::from_message(self)
     }
 }
 
@@ -464,7 +457,7 @@ where
 {
     fn to_problem(self) -> Problem {
         self.map(ToProblem::to_problem)
-            .unwrap_or(Problem::cause("<unknown error>"))
+            .unwrap_or(Problem::from_message("<unknown error>"))
     }
 }
 
@@ -508,31 +501,31 @@ impl<O> OptionToProblem<O> for Option<O> {
     where
         M: ToString,
     {
-        self.ok_or_else(|| Problem::cause(msg))
+        self.ok_or_else(|| Problem::from_message(msg))
     }
 }
 
 /// Add context to Result with Problem or that can be implicitly mapped to one
 pub trait ProblemWhile<O> {
-    fn problem_while(self, msg: impl Display) -> Result<O, Problem>;
+    fn problem_while(self, msg: impl ToString) -> Result<O, Problem>;
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
-        M: Display;
+        M: ToString;
 }
 
 impl<O, E> ProblemWhile<O> for Result<O, E>
 where
     E: Into<Problem>,
 {
-    fn problem_while(self, msg: impl Display) -> Result<O, Problem> {
+    fn problem_while(self, msg: impl ToString) -> Result<O, Problem> {
         self.map_err(|err| err.into().while_context(msg))
     }
 
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
-        M: Display,
+        M: ToString,
     {
         self.map_err(|err| err.into().while_context(msg()))
     }
@@ -541,7 +534,7 @@ where
 /// Executes closure with problem_while context
 pub fn in_context_of<O, M, B>(msg: M, body: B) -> Result<O, Problem>
 where
-    M: Display,
+    M: ToString,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while(msg)
@@ -551,7 +544,7 @@ where
 pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem>
 where
     F: FnOnce() -> M,
-    M: Display,
+    M: ToString,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while_with(msg)
@@ -954,7 +947,7 @@ mod tests {
     #[test]
     #[cfg(feature = "backtrace")]
     fn test_problem_backtrace() {
-        let p = Problem::cause("foo")
+        let p = Problem::from_message("foo")
             .while_context("bar")
             .while_context("baz");
 

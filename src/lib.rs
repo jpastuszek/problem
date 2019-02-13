@@ -337,35 +337,34 @@ pub mod prelude {
     pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
+/// Root cause of the problem
+#[derive(Debug)]
+pub enum Cause {
+    Message(String),
+    Error(Box<dyn Error>),
+}
+
 /// Error type that is not supposed to be handled but reported, panicked on or ignored
 #[derive(Debug)]
 pub enum Problem {
-    Cause(String, Option<String>),
+    Cause(Cause, Option<String>),
     Context(String, Box<Problem>),
 }
 
 impl Problem {
-    #[deprecated(since="3.1.0", note="please use `from_string` instead")]
+    #[deprecated(since = "3.1.0", note = "please use `from_string` instead")]
     pub fn cause(msg: impl ToString) -> Problem {
-        Problem::Cause(msg.to_string(), format_backtrace())
+        Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
     }
 
     /// Create `Problem` from any type implementing `ToString` or `Display`
-    pub fn from_string(msg: impl ToString) -> Problem {
-        Problem::Cause(msg.to_string(), format_backtrace())
+    pub fn from_message(msg: impl ToString) -> Problem {
+        Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
     }
 
     /// Create `Problem` from type implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
-    pub fn from_error(error: &Error) -> Problem {
-        let message = if let Some(cause) = error.cause() {
-            // make sure we follow through the cause chain
-            let cause_problem: Problem = Problem::from_error(cause);
-            format!("{}; caused by: {}", error.to_string(), cause_problem)
-        } else {
-            error.to_string()
-        };
-
-        Problem::Cause(message, format_backtrace())
+    pub fn from_error(error: Box<dyn Error>) -> Problem {
+        Problem::Cause(Cause::Error(error), format_backtrace())
     }
 
     /// Add context information to this `Problem` instance
@@ -382,14 +381,36 @@ impl Problem {
     }
 }
 
+impl Display for Cause {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Cause::Message(message) => write!(f, "{}", message),
+            Cause::Error(error) => {
+                write!(f, "{}", error)?;
+
+                let mut error_cause = error.as_ref();
+                loop {
+                    if let Some(cause) = error_cause.cause() {
+                        write!(f, "; caused by: {}", cause)?;
+                        error_cause = cause;
+                    } else {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 impl Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Problem::Cause(ref msg, None) => write!(f, "{}", msg),
-            &Problem::Cause(ref msg, Some(ref backtrace)) => {
-                write!(f, "{}\n\t--- Cause\n{}", msg, backtrace)
+            Problem::Cause(cause, None) => write!(f, "{}", cause),
+            Problem::Cause(cause, Some(backtrace)) => {
+                write!(f, "{}\n\t--- Cause\n{}", cause, backtrace)
             }
-            &Problem::Context(ref msg, ref inner) => match inner.as_ref() {
+            Problem::Context(msg, inner) => match inner.as_ref() {
                 cause @ &Problem::Cause(..) => {
                     write!(f, "while {} got error caused by: {}", msg, cause)
                 }
@@ -410,13 +431,12 @@ impl Display for Problem {
 // }
 impl<E> From<E> for Problem
 where
-    E: Error,
+    E: Error + 'static,
 {
     fn from(error: E) -> Problem {
-        Problem::from_error(&error)
+        Problem::from_error(Box::new(error))
     }
 }
-
 
 /// Explicit conversion to Problem
 pub trait ToProblem {
@@ -869,9 +889,11 @@ mod tests {
     fn test_result() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!")).or_failed_to("foo")
     }
-    
+
     #[test]
-    #[should_panic(expected = "Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error")]
+    #[should_panic(
+        expected = "Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error"
+    )]
     fn test_result_cause_chain() {
         Err(Baz(Bar(Foo))).or_failed_to("quix")
     }

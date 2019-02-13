@@ -14,15 +14,33 @@ Additionally `Problem` can also store message and another `Problem` which allows
 There are multiple ways to crate `Problem` value.
 
 ## Directly
+### From types implementing `Error` trait
 Using `Problem::from_error(error)` if `error` implements `Error` trait (via `Into<Box<dyn Error>>`).
-Using `Problem::from_message(msg)` for all types implementing `ToString` or `Display` traits.
+
+```rust
+use problem::prelude::*;
+use std::io;
+
+Problem::from_error(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+Problem::from_error(Box::new(io::Error::new(io::ErrorKind::InvalidInput, "boom!")));
+```
+
+Using `Problem::from_error_message(error)` if you don't want to give up ownership of `error` or only want to keep final message string.
+
+```rust
+use problem::prelude::*;
+use std::io;
+
+Problem::from_error_message(&io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+```
+
+### From types implementing `ToString` or `Display` trait
+Using `Problem::from_message(msg)` for all types implementing `ToString` or `Display` trait.
 
 ```rust
 use problem::prelude::*;
 
 Problem::from_message("foo");
-Problem::from_error(std::io::Error::new(std::io::ErrorKind::InvalidInput, "boom!"));
-Problem::from_error(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "boom!")));
 ```
 
 ## Implicitly
@@ -326,7 +344,7 @@ Problem::from_message("foo").backtrace(); // Some(<&str>)
 #[macro_use]
 extern crate log;
 use std::error::Error;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Write};
 use std::panic;
 
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
@@ -368,6 +386,17 @@ impl Problem {
         Problem::Cause(Cause::Error(error.into()), format_backtrace())
     }
 
+    /// Same as `Problem::from_error` but stores only final message and does not take ownership of the error
+    pub fn from_error_message<E>(error: &E) -> Problem
+    where
+        E: Error
+    {
+        let mut message = String::new();
+        write_error_message(error, &mut message).unwrap();
+
+        Problem::Cause(Cause::Message(message), format_backtrace())
+    }
+
     /// Add context information to this `Problem` instance
     pub fn while_context(self, msg: impl ToString) -> Problem {
         Problem::Context(msg.to_string(), Box::new(self))
@@ -382,24 +411,26 @@ impl Problem {
     }
 }
 
+fn write_error_message(error: &Error, w: &mut impl Write) -> fmt::Result {
+    write!(w, "{}", error)?;
+
+    let mut error_cause = error;
+    loop {
+        if let Some(cause) = error_cause.cause() {
+            write!(w, "; caused by: {}", cause)?;
+            error_cause = cause;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
 impl Display for Cause {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Cause::Message(message) => write!(f, "{}", message),
-            Cause::Error(error) => {
-                write!(f, "{}", error)?;
-
-                let mut error_cause = error.as_ref();
-                loop {
-                    if let Some(cause) = error_cause.cause() {
-                        write!(f, "; caused by: {}", cause)?;
-                        error_cause = cause;
-                    } else {
-                        break;
-                    }
-                }
-                Ok(())
-            }
+            Cause::Error(error) => write_error_message(error.as_ref(), f),
         }
     }
 }
@@ -889,6 +920,15 @@ mod tests {
     )]
     fn test_result_cause_chain() {
         Err(Baz(Bar(Foo))).or_failed_to("quix")
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error"
+    )]
+    fn test_result_cause_chain_message() {
+        let error = Baz(Bar(Foo));
+        Err(Problem::from_error_message(&error)).or_failed_to("quix")
     }
 
     #[test]

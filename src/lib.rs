@@ -345,13 +345,18 @@ pub enum Problem {
 }
 
 impl Problem {
-    /// Create `Problem` from any type implementing `ToString` or `Display`
+    #[deprecated(since="3.1.0", note="please use `from_string` instead")]
     pub fn cause(msg: impl ToString) -> Problem {
         Problem::Cause(msg.to_string(), format_backtrace())
     }
 
-    /// Create `Problem` from type implement `Error` so that `Error::cause` is followed through
-    pub fn from_error(error: &dyn Error) -> Problem {
+    /// Create `Problem` from any type implementing `ToString` or `Display`
+    pub fn from_string(msg: impl ToString) -> Problem {
+        Problem::Cause(msg.to_string(), format_backtrace())
+    }
+
+    /// Create `Problem` from type implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
+    pub fn from_error(error: &Error) -> Problem {
         let message = if let Some(cause) = error.cause() {
             // make sure we follow through the cause chain
             let cause_problem: Problem = Problem::from_error(cause);
@@ -395,6 +400,14 @@ impl Display for Problem {
 }
 
 /// Every type implementing Error trait can implicitly be converted to Problem via ? operator
+// impl<E> From<E> for Problem
+// where
+//     E: Error,
+// {
+//     fn from(error: E) -> Problem {
+//         Problem::from_error(&error)
+//     }
+// }
 impl<E> From<E> for Problem
 where
     E: Error,
@@ -403,6 +416,7 @@ where
         Problem::from_error(&error)
     }
 }
+
 
 /// Explicit conversion to Problem
 pub trait ToProblem {

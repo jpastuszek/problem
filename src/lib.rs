@@ -1,14 +1,20 @@
 /*!
-This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line program) for which error handling boils down to:
+This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line program) or prototype libraries for which error handling boils down to:
 * reporting error message (e.g. log with `error!` macro),
 * aborting program on error other than a bug (e.g. using `panic!` macro),
-* ignoring error.
+* ignoring error (e.g. using `Result::ok`).
 
 # Problem type
-`Problem` type is core of this library. It is basically a wrapper around `String`.
-In order to support conversion from types implementing `Error` trait it does not implement this trait.
-When converting other errors to `Problem` the `Display` message is produced of the original error and stored in `Problem` as cause message.
-Additionally `Problem` can also store message and another `Problem` which allows for nesting multiple contexts and problem causes.
+`Problem` type is core of this library. 
+Its main purpose is to capture error message, backtrace (if enabled) and any additional context information and present it in readable way via `Display` implementation.
+
+This library also provides may additional extension traits and some functions that make it easy to produce `Problem` type in different scenarios as well as report or abort programs on error.
+It is recommended to import all the types, traits via perlude module: `use problem::prelude::*`.
+
+`Problem` stores the error message directly as `String` or if original error implements `Error` trait as `Box<dyn Error>` to dealy construction of error message to when it is actually needed.
+Additionally `Problem` can also store backtrace (if enabled) and a chain of additional context messages.
+
+In order to support conversion from types implementing `Error` trait `Problem` does not implement this trait.
 
 # Creating Problem
 There are multiple ways to crate `Problem` value.
@@ -56,7 +62,7 @@ fn foo() -> Result<String, Problem> {
 assert_eq!(foo().unwrap_err().to_string(), "invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-If Error cause or source is available it will be shown as well.
+If `Error::cause` or `Error::source` is available error message from cause chain will be displayed.
 ```rust
 use problem::prelude::*;
 use std::fmt;

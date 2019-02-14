@@ -40,8 +40,8 @@ use std::io;
 Problem::from_error_message(&io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
 ```
 
-### From types implementing `ToString` or `Display` trait
-Using `Problem::from_message(msg)` for all types implementing `ToString` or `Display` trait.
+### From types implementing `Display` trait
+Using `Problem::from_message(msg)` for all types implementing `Display` trait.
 
 ```rust
 use problem::prelude::*;
@@ -91,7 +91,7 @@ assert_eq!(foo().unwrap_err().to_string(), "bad things happened; caused by: inva
 ```
 
 ## Explicitly
-Any type that implements `ToString` or `Display` can be converted to `Problem` with `.to_problem()`.
+Any type that implements `Display` can be converted to `Problem` with `.to_problem()`.
 
 ```rust
 use problem::prelude::*;
@@ -379,8 +379,8 @@ pub enum Problem {
 }
 
 impl Problem {
-    /// Create `Problem` from any type implementing `ToString` or `Display`
-    pub fn from_message(msg: impl ToString) -> Problem {
+    /// Create `Problem` from any type implementing `Display`
+    pub fn from_message(msg: impl Display) -> Problem {
         Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
     }
 
@@ -404,7 +404,7 @@ impl Problem {
     }
 
     /// Add context information to this `Problem` instance
-    pub fn while_context(self, msg: impl ToString) -> Problem {
+    pub fn while_context(self, msg: impl Display) -> Problem {
         Problem::Context(msg.to_string(), Box::new(self))
     }
 
@@ -458,7 +458,7 @@ impl Display for Problem {
     }
 }
 
-/// Every type implementing Error trait can implicitly be converted to Problem via ? operator
+/// Every type implementing `Error` trait can implicitly be converted to Problem via `?` operator
 impl<E> From<E> for Problem
 where
     E: Into<Box<dyn Error>>,
@@ -468,22 +468,22 @@ where
     }
 }
 
-/// Explicit conversion to Problem
+/// Explicit conversion to `Problem`
 pub trait ToProblem {
     fn to_problem(self) -> Problem;
 }
 
-/// T that has Display or ToString implemented can be converted to Problem
+/// `T` that has `Display` implemented can be converted to `Problem`
 impl<T> ToProblem for T
 where
-    T: ToString,
+    T: Display,
 {
     fn to_problem(self) -> Problem {
         Problem::from_message(self)
     }
 }
 
-/// Option of T that has Display or ToString implemented can be converted to Problem that displays <unknown error> for None variant
+/// Option of `T` that has `Display` implemented can be converted to `Problem` that displays "<unknown error>" for `None` variant
 pub trait OptionErrorToProblem {
     fn to_problem(self) -> Problem;
 }
@@ -498,7 +498,7 @@ where
     }
 }
 
-/// Mapping Result with error to Result with Problem
+/// Mapping `Result` with error to `Result` with `Problem`
 pub trait ResultToProblem<O> {
     fn map_problem(self) -> Result<O, Problem>;
 }
@@ -512,7 +512,7 @@ where
     }
 }
 
-/// Mapping Result with Option<Error> to Result with Problem
+/// Mapping `Result` with `Option<Error>` to `Result` with `Problem`
 pub trait ResultOptionToProblem<O> {
     fn map_problem(self) -> Result<O, Problem>;
 }
@@ -526,68 +526,68 @@ where
     }
 }
 
-/// Map Option to Result with Problem
+/// Map `Option` to `Result` with `Problem`
 pub trait OptionToProblem<O> {
     fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem>
     where
-        M: ToString;
+        M: Display;
 }
 
 impl<O> OptionToProblem<O> for Option<O> {
     fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem>
     where
-        M: ToString,
+        M: Display,
     {
         self.ok_or_else(|| Problem::from_message(msg))
     }
 }
 
-/// Add context to Result with Problem or that can be implicitly mapped to one
+/// Add context to `Result` with `Problem` or that can be implicitly converted to `Problem`
 pub trait ProblemWhile<O> {
-    fn problem_while(self, msg: impl ToString) -> Result<O, Problem>;
+    fn problem_while(self, msg: impl Display) -> Result<O, Problem>;
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
-        M: ToString;
+        M: Display;
 }
 
 impl<O, E> ProblemWhile<O> for Result<O, E>
 where
     E: Into<Problem>,
 {
-    fn problem_while(self, msg: impl ToString) -> Result<O, Problem> {
+    fn problem_while(self, msg: impl Display) -> Result<O, Problem> {
         self.map_err(|err| err.into().while_context(msg))
     }
 
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
-        M: ToString,
+        M: Display,
     {
         self.map_err(|err| err.into().while_context(msg()))
     }
 }
 
-/// Executes closure with problem_while context
+/// Executes closure with `problem_while` context
 pub fn in_context_of<O, M, B>(msg: M, body: B) -> Result<O, Problem>
 where
-    M: ToString,
+    M: Display,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while(msg)
 }
 
-/// Executes closure with problem_while_with context
+/// Executes closure with `problem_while_with` context
 pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem>
 where
     F: FnOnce() -> M,
-    M: ToString,
+    M: Display,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while_with(msg)
 }
 
-/// Extension of Result that allows program to panic with Display message on Err for fatal application errors that are not bugs
+/// Extension of `Result` that allows program to panic with `Display` message on `Err` for fatal application errors that are not bugs
 pub trait FailedTo<O> {
     fn or_failed_to(self, msg: impl Display) -> O;
 }
@@ -613,7 +613,7 @@ impl<O> FailedTo<O> for Option<O> {
     }
 }
 
-/// Iterator that will panic on first error with message displaying Display formatted message
+/// Iterator that will panic on first error with message displaying `Display` formatted message
 pub struct ProblemIter<I> {
     inner: I,
     message: String,
@@ -633,9 +633,9 @@ where
     }
 }
 
-/// Convert Iterator of Result<O, E> to iterator of O and panic on first E with problem message
+/// Convert `Iterator` of `Result<O, E>` to iterator of `O` and panic on first `E` with problem message
 pub trait FailedToIter<O, E>: Sized {
-    fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self>;
+    fn or_failed_to(self, msg: impl Display) -> ProblemIter<Self>;
 }
 
 impl<I, O, E> FailedToIter<O, E> for I
@@ -643,7 +643,7 @@ where
     I: Iterator<Item = Result<O, E>>,
     E: Into<Problem>,
 {
-    fn or_failed_to(self, msg: impl ToString) -> ProblemIter<Self> {
+    fn or_failed_to(self, msg: impl Display) -> ProblemIter<Self> {
         ProblemIter {
             inner: self,
             message: msg.to_string(),
@@ -656,7 +656,7 @@ pub mod logged {
     use super::*;
     use log::{error, warn};
 
-    /// Extension of Result that allows program to log on Err with Display message for application errors that are not critical
+    /// Extension of `Result` that allows program to log on `Err` with `Display` message for application errors that are not critical
     pub trait OkOrLog<O> {
         fn ok_or_log_warn(self) -> Option<O>;
         fn ok_or_log_error(self) -> Option<O>;
@@ -687,7 +687,7 @@ pub mod logged {
         }
     }
 
-    /// Iterator that will log as warn Display formatted message on Err and skip to next item; it can be flattened to skip failed items
+    /// Iterator that will log as warn `Display` formatted message on `Err` and skip to next item; it can be flattened to skip failed items
     pub struct ProblemWarnLoggingIter<I> {
         inner: I,
     }
@@ -704,7 +704,7 @@ pub mod logged {
         }
     }
 
-    /// Iterator that will log as error Display formatted message on Err and skip to next item; it can be flattened to skip failed items
+    /// Iterator that will log as error `Display` formatted message on `Err` and skip to next item; it can be flattened to skip failed items
     pub struct ProblemErrorLoggingIter<I> {
         inner: I,
     }
@@ -721,7 +721,7 @@ pub mod logged {
         }
     }
 
-    /// Convert Iterator of Result<O, E> to iterator of Option<O> and log any Err variants
+    /// Convert `Iterator` of `Result<O, E>` to iterator of `Option<O>` and log any `Err` variants
     pub trait OkOrLogIter<O, E>: Sized {
         fn ok_or_log_warn(self) -> ProblemWarnLoggingIter<Self>;
         fn ok_or_log_error(self) -> ProblemErrorLoggingIter<Self>;
@@ -755,7 +755,6 @@ fn format_backtrace() -> Option<String> {
 
         backtrace::trace(|frame| {
             let ip = frame.ip();
-            //let symbol_address = frame.symbol_address();
 
             backtrace.push_str("\tat ");
 
@@ -816,7 +815,7 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
     message
 }
 
-/// Set panic hook so that when program panics it will print the Display version of error massage to stderr
+/// Set panic hook so that when program panics it will print the `Display` version of error massage to stderr
 pub fn format_panic_to_stderr() {
     panic::set_hook(Box::new(|panic_info| {
         let backtrace = format_backtrace();
@@ -824,7 +823,7 @@ pub fn format_panic_to_stderr() {
     }));
 }
 
-/// Set panic hook so that when program panics it will log the Display version of error massage with error! macro
+/// Set panic hook so that when program panics it will log the `Display` version of error massage with error! macro
 #[cfg(feature = "log")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {

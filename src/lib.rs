@@ -353,11 +353,10 @@ use std::error::Error;
 use std::fmt::{self, Display, Write};
 use std::panic;
 
-// TODO: use impl in arguments more if makes sense
-
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
 pub mod prelude {
     pub use super::{
+        MessageError, ToMessageError,
         in_context_of, in_context_of_with, FailedTo, FailedToIter, MapProblemMessage,
         OptionToProblemMessage, Problem, ProblemWhile, ToProblemMessage, MapProblemOrMessage, MapProblemMessageOrMessage
     };
@@ -366,29 +365,66 @@ pub mod prelude {
     pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
-/// Root cause of the problem
-#[derive(Debug)]
-pub enum Cause {
-    Message(String),
-    Error(Box<dyn Error>),
+pub struct MessageError(Box<dyn Display>);
+
+impl MessageError {
+    pub fn from_message(message: impl Display + 'static) -> MessageError {
+        MessageError(Box::new(message))
+    }
+}
+
+impl fmt::Debug for MessageError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MessageError({})", self.0)
+    }
+}
+
+impl Display for MessageError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Error for MessageError {}
+
+pub trait ToMessageError {
+    fn to_message_error(self) -> MessageError;
+}
+
+impl<T> ToMessageError for T where T: Display + 'static {
+    fn to_message_error(self) -> MessageError {
+        MessageError(Box::new(self))
+    }
+}
+
+impl From<&'static str> for MessageError {
+    fn from(message: &'static str) -> MessageError {
+        MessageError(Box::new(message))
+    }
+}
+
+impl From<String> for MessageError {
+    fn from(message: String) -> MessageError {
+        MessageError(Box::new(message))
+    }
 }
 
 /// Error type that is not supposed to be handled but reported, panicked on or ignored
 #[derive(Debug)]
 pub enum Problem {
-    Cause(Cause, Option<String>),
+    Cause(Box<dyn Error>, Option<String>),
     Context(String, Box<Problem>),
 }
 
 impl Problem {
     /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
     pub fn from_error(error: impl Into<Box<dyn Error>>) -> Problem {
-        Problem::Cause(Cause::Error(error.into()), format_backtrace())
+        Problem::Cause(error.into(), format_backtrace())
     }
 
     /// Create `Problem` from any type implementing `Display`
-    pub fn from_message(message: impl Display) -> Problem {
-        Problem::Cause(Cause::Message(message.to_string()), format_backtrace())
+    pub fn from_message(message: impl Display + 'static) -> Problem {
+        Problem::Cause(Box::new(MessageError::from_message(message)), format_backtrace())
     }
 
     /// Same as `Problem::from_error` but stores only final message and does not take ownership of the error
@@ -396,7 +432,7 @@ impl Problem {
         let mut message = String::new();
         write_error_message(error, &mut message).unwrap();
 
-        Problem::Cause(Cause::Message(message), format_backtrace())
+        Problem::Cause(Box::new(MessageError(Box::new(message))), format_backtrace())
     }
 
     /// Get backtrace associated with this `Problem` instance if available
@@ -423,21 +459,13 @@ fn write_error_message(error: &Error, w: &mut impl Write) -> fmt::Result {
     Ok(())
 }
 
-impl Display for Cause {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Cause::Message(message) => write!(f, "{}", message),
-            Cause::Error(error) => write_error_message(error.as_ref(), f),
-        }
-    }
-}
-
 impl Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Problem::Cause(cause, None) => write!(f, "{}", cause),
+            Problem::Cause(cause, None) => write_error_message(cause.as_ref(), f),
             Problem::Cause(cause, Some(backtrace)) => {
-                write!(f, "{}\n\t--- Cause\n{}", cause, backtrace)
+                write_error_message(cause.as_ref(), f)?;
+                write!(f, "\n\t--- Cause\n{}", backtrace)
             }
             Problem::Context(message, inner) => match inner.as_ref() {
                 cause @ &Problem::Cause(..) => {
@@ -472,10 +500,10 @@ pub trait ToProblemMessage {
 /// `T` that has `Display` implemented can be converted to `Problem`
 impl<T> ToProblemMessage for T
 where
-    T: Display,
+    T: Into<MessageError>
 {
     fn to_problem_message(self) -> Problem {
-        Problem::from_message(self)
+        Problem::from_error(self.into())
     }
 }
 
@@ -525,7 +553,7 @@ where
 
 pub trait MapProblemOrMessage {
     type ProblemCarrier;
-    fn map_problem_or_message(self, message: impl Display) -> Self::ProblemCarrier;
+    fn map_problem_or_message(self, message: impl Display + 'static) -> Self::ProblemCarrier;
 }
 
 /// Mapping `Result` with `Option<E>` to `Result` with `Problem` where `E` implements `Error`
@@ -535,14 +563,14 @@ where
 {
     type ProblemCarrier = Result<O, Problem>;
 
-    fn map_problem_or_message(self, message: impl Display) -> Result<O, Problem> {
+    fn map_problem_or_message(self, message: impl Display + 'static) -> Result<O, Problem> {
         self.map_err(|e| e.map(Into::into).unwrap_or(Problem::from_message(message)))
     }
 }
 
 pub trait MapProblemMessageOrMessage {
     type ProblemCarrier;
-    fn map_problem_message_or_message(self, message: impl Display) -> Self::ProblemCarrier;
+    fn map_problem_message_or_message(self, message: impl Display + 'static) -> Self::ProblemCarrier;
 }
 
 /// Mapping `Result` with `Option<E>` to `Result` with message `Problem`
@@ -552,7 +580,7 @@ where
 {
     type ProblemCarrier = Result<O, Problem>;
 
-    fn map_problem_message_or_message(self, message: impl Display) -> Result<O, Problem> {
+    fn map_problem_message_or_message(self, message: impl Display + 'static) -> Result<O, Problem> {
         self.map_err(|e| e.map(ToProblemMessage::to_problem_message).unwrap_or(Problem::from_message(message)))
     }
 }
@@ -888,8 +916,11 @@ pub fn format_panic_to_error_log() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::prelude::*;
+    use super::{format_panic_to_stderr, in_context_of};
     use std::io;
+    use std::fmt::{self, Display};
+    use std::error::Error;
 
     #[derive(Debug)]
     struct Foo;
@@ -935,12 +966,13 @@ mod tests {
     #[test]
     fn test_convertion() {
         let _: Problem = io::Error::new(io::ErrorKind::InvalidInput, "boom!").into();
+        let _: Problem = "boom!".into(); // via impl<'a> From<&'a str> for Box<dyn Error>
+    }
 
-        let problem: Problem = "boom!".into(); // WAT? -> StringError("boom!")
-        match problem {
-            Problem::Cause(Cause::Error(_), _) => (),
-            _ => panic!("expecte error problem"),
-        }
+    #[test]
+    fn test_convertion_auto() {
+        let p: Result<(), Problem> = Err("boom!").problem_while("bam");
+        panic!("{:#?}", p);
     }
 
     #[test]
@@ -1043,7 +1075,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Failed to foo due to: omg!")]
     fn test_result_iter_or_failed_to() {
-        let results = vec![Ok(1u32), Ok(2u32), Err("omg!".to_problem_message())];
+        let results = vec![Ok(1u32), Ok(2u32), Err("omg!")];
         let _ok = results.into_iter().or_failed_to("foo").collect::<Vec<_>>();
     }
 

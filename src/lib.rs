@@ -5,7 +5,7 @@ This crate introduces `Problem` type which can be used on high level APIs (e.g. 
 * ignoring error (e.g. using `Result::ok`).
 
 # Problem type
-`Problem` type is core of this library. 
+`Problem` type is core of this library.
 Its main purpose is to capture error message, backtrace (if enabled) and any additional context information and present it in readable way via `Display` implementation.
 
 This library also provides may additional extension traits and some functions that make it easy to produce `Problem` type in different scenarios as well as report or abort programs on error.
@@ -22,6 +22,7 @@ There are multiple ways to crate `Problem` value.
 ## Directly
 ### From types implementing `Error` trait
 Using `Problem::from_error(error)` if `error` implements `Error` trait (via `Into<Box<dyn Error>>`).
+Note that 'String' and '&str' implements 'Into<Box<dyn Error>>' so problem can be crated from strings as well.
 
 ```rust
 use problem::prelude::*;
@@ -29,6 +30,7 @@ use std::io;
 
 Problem::from_error(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
 Problem::from_error(Box::new(io::Error::new(io::ErrorKind::InvalidInput, "boom!")));
+Problem::from_error("boom!");
 ```
 
 Using `Problem::from_error_message(error)` if you don't want to give up ownership of `error` or only want to keep final message string.
@@ -38,15 +40,6 @@ use problem::prelude::*;
 use std::io;
 
 Problem::from_error_message(&io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
-```
-
-### From types implementing `Display` trait
-Using `Problem::from_message(message)` for all types implementing `Display` trait.
-
-```rust
-use problem::prelude::*;
-
-Problem::from_message("foo");
 ```
 
 ## Implicitly
@@ -91,23 +84,23 @@ assert_eq!(foo().unwrap_err().to_string(), "bad things happened; caused by: inva
 ```
 
 ## Explicitly
-Any type that implements `Display` can be converted to `Problem` with `.to_problem_message()`.
+Any type that implements `Display` can be converted to `Problem` with `.to_problem()`.
 
 ```rust
 use problem::prelude::*;
 
-assert_eq!("oops".to_problem_message().to_string(), "oops");
+assert_eq!("oops".to_problem().to_string(), "oops");
 ```
 
 ## By mapping Result
-`Result<T, E>` can be mapped into `Result<T, Problem>` with `.map_problem_message()` function.
+`Result<T, E>` can be mapped into `Result<T, Problem>` with `.map_problem()` function.
 
 ```rust
 use problem::prelude::*;
 
 let res: Result<(), &'static str> = Err("oops");
 
-assert_eq!(res.map_problem_message().unwrap_err().to_string(), "oops");
+assert_eq!(res.map_problem().unwrap_err().to_string(), "oops");
 ```
 
 ## By conversion of Option to Result
@@ -123,7 +116,7 @@ assert_eq!(opt.ok_or_problem("oops").unwrap_err().to_string(), "oops");
 
 ## From Result with Err containing Option
 When working with C libraries actual errors may be unknown and function's `Result` will have `Option<impl Error>` for their `Err` variant type.
-`.map_problem_message()` method is implemented for `Result<O, Option<E>>` and will contain "\<unknown error\>" message for `Err(None)` variant.
+`.map_problem()` method is implemented for `Result<O, Option<E>>` and will contain "\<unknown error\>" message for `Err(None)` variant.
 
 ```rust
 use problem::prelude::*;
@@ -131,8 +124,8 @@ use problem::prelude::*;
 let unknown: Result<(), Option<&'static str>> = Err(None);
 let known: Result<(), Option<&'static str>> = Err(Some("oops"));
 
-assert_eq!(unknown.map_problem_message_or_message("unknown error").unwrap_err().to_string(), "unknown error");
-assert_eq!(known.map_problem_message_or_message("unknown error").unwrap_err().to_string(), "oops");
+assert_eq!(unknown.map_problem_or("unknown error").unwrap_err().to_string(), "unknown error");
+assert_eq!(known.map_problem_or("unknown error").unwrap_err().to_string(), "oops");
 ```
 
 # Adding context to Problem
@@ -255,7 +248,7 @@ use problem::format_panic_to_stderr;
 
 format_panic_to_stderr();
 
-let results = vec![Ok(1u32), Ok(2u32), Err("oops".to_problem_message())];
+let results = vec![Ok(1u32), Ok(2u32), Err("oops")];
 
 // Prints message: Failed to collect numbers due to: oops
 let _ok: Vec<u32> = results.into_iter()
@@ -273,7 +266,7 @@ use problem::prelude::*;
 
 # #[cfg(feature = "log")]
 # fn test_with_log_feature() {
-let results = vec![Ok(1u32), Ok(2), Err("oops".to_problem_message()), Ok(3), Err("oh".to_problem_message()), Ok(4)];
+let results = vec![Ok(1u32), Ok(2), Err("oops"), Ok(3), Err("oh"), Ok(4)];
 
 // Logs warning message: Continuing with error oops
 // Logs warning message: Continuing with error oh
@@ -343,7 +336,7 @@ Formatted backtrace `&str` can be accessed via `Problem::backtrace` function tha
 ```rust
 use problem::prelude::*;
 
-Problem::from_message("foo").backtrace(); // Some(<&str>)
+Problem::from_error("foo").backtrace(); // Some(<&str>)
 ```
  */
 #[cfg(feature = "log")]
@@ -356,57 +349,12 @@ use std::panic;
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
 pub mod prelude {
     pub use super::{
-        MessageError, ToMessageError,
-        in_context_of, in_context_of_with, FailedTo, FailedToIter, MapProblemMessage,
-        OptionToProblemMessage, Problem, ProblemWhile, ToProblemMessage, MapProblemOrMessage, MapProblemMessageOrMessage
+        in_context_of, in_context_of_with, FailedTo, FailedToIter, MapProblem, MapProblemOr,
+        OptionToProblemMessage, Problem, ProblemWhile, ToProblem,
     };
 
     #[cfg(feature = "log")]
     pub use super::logged::{OkOrLog, OkOrLogIter};
-}
-
-pub struct MessageError(Box<dyn Display>);
-
-impl MessageError {
-    pub fn from_message(message: impl Display + 'static) -> MessageError {
-        MessageError(Box::new(message))
-    }
-}
-
-impl fmt::Debug for MessageError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MessageError({})", self.0)
-    }
-}
-
-impl Display for MessageError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl Error for MessageError {}
-
-pub trait ToMessageError {
-    fn to_message_error(self) -> MessageError;
-}
-
-impl<T> ToMessageError for T where T: Display + 'static {
-    fn to_message_error(self) -> MessageError {
-        MessageError(Box::new(self))
-    }
-}
-
-impl From<&'static str> for MessageError {
-    fn from(message: &'static str) -> MessageError {
-        MessageError(Box::new(message))
-    }
-}
-
-impl From<String> for MessageError {
-    fn from(message: String) -> MessageError {
-        MessageError(Box::new(message))
-    }
 }
 
 /// Error type that is not supposed to be handled but reported, panicked on or ignored
@@ -417,14 +365,10 @@ pub enum Problem {
 }
 
 impl Problem {
-    /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
+    /// Create `Problem` from types implementing `Into<Box<dyn Error>>` (including `String` and `&str`) so that `Error::cause` 
+    /// chain is followed through in the `Display` message
     pub fn from_error(error: impl Into<Box<dyn Error>>) -> Problem {
         Problem::Cause(error.into(), format_backtrace())
-    }
-
-    /// Create `Problem` from any type implementing `Display`
-    pub fn from_message(message: impl Display + 'static) -> Problem {
-        Problem::Cause(Box::new(MessageError::from_message(message)), format_backtrace())
     }
 
     /// Same as `Problem::from_error` but stores only final message and does not take ownership of the error
@@ -432,7 +376,7 @@ impl Problem {
         let mut message = String::new();
         write_error_message(error, &mut message).unwrap();
 
-        Problem::Cause(Box::new(MessageError(Box::new(message))), format_backtrace())
+        Problem::Cause(message.into(), format_backtrace())
     }
 
     /// Get backtrace associated with this `Problem` instance if available
@@ -482,7 +426,7 @@ pub trait ToProblem {
     fn to_problem(self) -> Problem;
 }
 
-/// `T` that has `Error` implemented can be converted to `Problem`
+/// `T` that implements `Into<Box<dyn Error>>` can be converted to `Problem`
 impl<T> ToProblem for T
 where
     T: Into<Box<dyn Error>>,
@@ -492,22 +436,7 @@ where
     }
 }
 
-/// Explicit conversion to `Problem` via `Problem::from_message(message)`
-pub trait ToProblemMessage {
-    fn to_problem_message(self) -> Problem;
-}
-
-/// `T` that has `Display` implemented can be converted to `Problem`
-impl<T> ToProblemMessage for T
-where
-    T: Into<MessageError>
-{
-    fn to_problem_message(self) -> Problem {
-        Problem::from_error(self.into())
-    }
-}
-
-/// Every type implementing `Error` trait can implicitly be converted to `Problem` via `?` operator
+/// Every type implementing `ToProblem` trait can implicitly be converted to `Problem` via `?` operator
 impl<E> From<E> for Problem
 where
     E: ToProblem,
@@ -517,13 +446,13 @@ where
     }
 }
 
-/// Map type containing error to type containing `Problem` storing `Box<dyn Error>`
+/// Map type containing error to type containing `Problem`
 pub trait MapProblem {
     type ProblemCarrier;
     fn map_problem(self) -> Self::ProblemCarrier;
 }
 
-/// Mapping `Result` with error to `Result` with `Problem` storing `Box<dyn Error>`
+/// Mapping `Result` with error to `Result` with `Problem`
 impl<O, E> MapProblem for Result<O, E>
 where
     E: Into<Problem>,
@@ -534,70 +463,37 @@ where
     }
 }
 
-/// Map type containing error to type containing `Problem` storing error message
-pub trait MapProblemMessage {
+/// Map type not containing any error to type containing given `Problem`
+pub trait MapProblemOr {
     type ProblemCarrier;
-    fn map_problem_message(self) -> Self::ProblemCarrier;
+    fn map_problem_or(self, message: impl Into<Problem>) -> Self::ProblemCarrier;
 }
 
-/// Mapping `Result` with error to `Result` with `Problem` storing error message
-impl<O, E> MapProblemMessage for Result<O, E>
-where
-    E: ToProblemMessage,
-{
-    type ProblemCarrier = Result<O, Problem>;
-    fn map_problem_message(self) -> Result<O, Problem> {
-        self.map_err(|e| e.to_problem_message())
-    }
-}
-
-pub trait MapProblemOrMessage {
-    type ProblemCarrier;
-    fn map_problem_or_message(self, message: impl Display + 'static) -> Self::ProblemCarrier;
-}
-
-/// Mapping `Result` with `Option<E>` to `Result` with `Problem` where `E` implements `Error`
-impl<O, E> MapProblemOrMessage for Result<O, Option<E>>
+/// Mapping `Result` with `Option<E>` to `Result` with `Problem` where `E` implements `Into<Problem>`
+impl<O, E> MapProblemOr for Result<O, Option<E>>
 where
     E: Into<Problem>,
 {
     type ProblemCarrier = Result<O, Problem>;
 
-    fn map_problem_or_message(self, message: impl Display + 'static) -> Result<O, Problem> {
-        self.map_err(|e| e.map(Into::into).unwrap_or(Problem::from_message(message)))
+    fn map_problem_or(self, problem: impl Into<Problem>) -> Result<O, Problem> {
+        self.map_err(|e| e.map(Into::into).unwrap_or(problem.into()))
     }
 }
 
-pub trait MapProblemMessageOrMessage {
-    type ProblemCarrier;
-    fn map_problem_message_or_message(self, message: impl Display + 'static) -> Self::ProblemCarrier;
-}
-
-/// Mapping `Result` with `Option<E>` to `Result` with message `Problem`
-impl<O, E> MapProblemMessageOrMessage for Result<O, Option<E>>
-where
-    E: ToProblemMessage,
-{
-    type ProblemCarrier = Result<O, Problem>;
-
-    fn map_problem_message_or_message(self, message: impl Display + 'static) -> Result<O, Problem> {
-        self.map_err(|e| e.map(ToProblemMessage::to_problem_message).unwrap_or(Problem::from_message(message)))
-    }
-}
-
-/// Map `Option` to `Result` with `Problem`
 pub trait OptionToProblemMessage<O> {
     fn ok_or_problem<M>(self, message: M) -> Result<O, Problem>
     where
-        M: ToProblemMessage;
+        M: ToProblem;
 }
 
+/// Map `Option` to `Result` with `Problem`
 impl<O> OptionToProblemMessage<O> for Option<O> {
     fn ok_or_problem<M>(self, message: M) -> Result<O, Problem>
     where
-        M: ToProblemMessage,
+        M: ToProblem,
     {
-        self.ok_or_else(|| message.to_problem_message())
+        self.ok_or_else(|| message.to_problem())
     }
 }
 
@@ -605,27 +501,27 @@ impl<O> OptionToProblemMessage<O> for Option<O> {
 pub trait ProblemWhile {
     type WithContext;
 
-    /// Add context information from `Display` type
-    fn problem_while(self, message: impl Display) -> Self::WithContext;
+    /// Add context information from `ToString`/`Display` type
+    fn problem_while(self, message: impl ToString) -> Self::WithContext;
 
     /// Add context information from function call
     fn problem_while_with<F, M>(self, message: F) -> Self::WithContext
     where
         F: FnOnce() -> M,
-        M: Display;
+        M: ToString;
 }
 
 impl ProblemWhile for Problem {
     type WithContext = Problem;
 
-    fn problem_while(self, message: impl Display) -> Problem {
+    fn problem_while(self, message: impl ToString) -> Problem {
         Problem::Context(message.to_string(), Box::new(self))
     }
 
     fn problem_while_with<F, M>(self, message: F) -> Problem
     where
         F: FnOnce() -> M,
-        M: Display,
+        M: ToString,
     {
         Problem::Context(message().to_string(), Box::new(self))
     }
@@ -637,14 +533,14 @@ where
 {
     type WithContext = Result<O, Problem>;
 
-    fn problem_while(self, message: impl Display) -> Result<O, Problem> {
+    fn problem_while(self, message: impl ToString) -> Result<O, Problem> {
         self.map_err(|err| err.into().problem_while(message))
     }
 
     fn problem_while_with<F, M>(self, message: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
-        M: Display,
+        M: ToString,
     {
         self.map_err(|err| err.into().problem_while(message()))
     }
@@ -653,7 +549,7 @@ where
 /// Executes closure with `problem_while` context
 pub fn in_context_of<O, M, B>(message: M, body: B) -> Result<O, Problem>
 where
-    M: Display,
+    M: ToString,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while(message)
@@ -663,7 +559,7 @@ where
 pub fn in_context_of_with<O, F, M, B>(message: F, body: B) -> Result<O, Problem>
 where
     F: FnOnce() -> M,
-    M: Display,
+    M: ToString,
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while_with(message)
@@ -918,9 +814,9 @@ pub fn format_panic_to_error_log() {
 mod tests {
     use super::prelude::*;
     use super::{format_panic_to_stderr, in_context_of};
-    use std::io;
-    use std::fmt::{self, Display};
     use std::error::Error;
+    use std::fmt::{self, Display};
+    use std::io;
 
     #[derive(Debug)]
     struct Foo;
@@ -967,12 +863,6 @@ mod tests {
     fn test_convertion() {
         let _: Problem = io::Error::new(io::ErrorKind::InvalidInput, "boom!").into();
         let _: Problem = "boom!".into(); // via impl<'a> From<&'a str> for Box<dyn Error>
-    }
-
-    #[test]
-    fn test_convertion_auto() {
-        let p: Result<(), Problem> = Err("boom!").problem_while("bam");
-        panic!("{:#?}", p);
     }
 
     #[test]
@@ -1055,7 +945,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: boom!")]
     fn test_option_errors() {
         Err(Some(io::Error::new(io::ErrorKind::InvalidInput, "boom!")))
-            .map_problem_or_message("<unknown error>")
+            .map_problem_or("<unknown error>")
             .or_failed_to("foo")
     }
 
@@ -1063,7 +953,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: <unknown error>")]
     fn test_result_option_errors_unknown() {
         let err: Result<(), Option<io::Error>> = Err(None);
-        err.map_problem_or_message("<unknown error>").or_failed_to("foo")
+        err.map_problem_or("<unknown error>").or_failed_to("foo")
     }
 
     #[test]
@@ -1101,7 +991,7 @@ mod tests {
     #[test]
     #[cfg(feature = "backtrace")]
     fn test_problem_backtrace() {
-        let p = Problem::from_message("foo")
+        let p = Problem::from_error("foo")
             .problem_while("bar")
             .problem_while("baz");
 

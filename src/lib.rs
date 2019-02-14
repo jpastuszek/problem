@@ -41,7 +41,7 @@ Problem::from_error_message(&io::Error::new(io::ErrorKind::InvalidInput, "boom!"
 ```
 
 ### From types implementing `Display` trait
-Using `Problem::from_message(msg)` for all types implementing `Display` trait.
+Using `Problem::from_message(message)` for all types implementing `Display` trait.
 
 ```rust
 use problem::prelude::*;
@@ -91,37 +91,23 @@ assert_eq!(foo().unwrap_err().to_string(), "bad things happened; caused by: inva
 ```
 
 ## Explicitly
-Any type that implements `Display` can be converted to `Problem` with `.to_problem()`.
+Any type that implements `Display` can be converted to `Problem` with `.to_problem_message()`.
 
 ```rust
 use problem::prelude::*;
 
-assert_eq!("oops".to_problem().to_string(), "oops");
-```
-
-## From Option
-Often when working with C libraries actual errors may be unknown and function `Result` will have `Option<impl Error>` for their `Err` variant type.
-`.to_problem()` method is implemented for `Option<E>` and will contain "\<unknown error\>" message for `None` variant.
-
-```rust
-use problem::prelude::*;
-
-let unknown: Option<&'static str> = None;
-let known: Option<&'static str> = Some("oops");
-
-assert_eq!(unknown.to_problem().to_string(), "<unknown error>");
-assert_eq!(known.to_problem().to_string(), "oops");
+assert_eq!("oops".to_problem_message().to_string(), "oops");
 ```
 
 ## By mapping Result
-`Result<T, E>` can be mapped into `Result<T, Problem>` with `.map_problem()` function.
+`Result<T, E>` can be mapped into `Result<T, Problem>` with `.map_problem_message()` function.
 
 ```rust
 use problem::prelude::*;
 
 let res: Result<(), &'static str> = Err("oops");
 
-assert_eq!(res.map_problem().unwrap_err().to_string(), "oops");
+assert_eq!(res.map_problem_message().unwrap_err().to_string(), "oops");
 ```
 
 ## By conversion of Option to Result
@@ -133,6 +119,20 @@ use problem::prelude::*;
 let opt: Option<()> = None;
 
 assert_eq!(opt.ok_or_problem("oops").unwrap_err().to_string(), "oops");
+```
+
+## From Result with Err containing Option
+When working with C libraries actual errors may be unknown and function's `Result` will have `Option<impl Error>` for their `Err` variant type.
+`.map_problem_message()` method is implemented for `Result<O, Option<E>>` and will contain "\<unknown error\>" message for `Err(None)` variant.
+
+```rust
+use problem::prelude::*;
+
+let unknown: Result<(), Option<&'static str>> = Err(None);
+let known: Result<(), Option<&'static str>> = Err(Some("oops"));
+
+assert_eq!(unknown.map_problem_message_or_message("unknown error").unwrap_err().to_string(), "unknown error");
+assert_eq!(known.map_problem_message_or_message("unknown error").unwrap_err().to_string(), "oops");
 ```
 
 # Adding context to Problem
@@ -210,7 +210,7 @@ assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo g
 ```
 
 # Aborting program on Problem
-`panic!(msg, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
+`panic!(message, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
 This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
 
 If `log` feature is enabled (default) function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
@@ -255,7 +255,7 @@ use problem::format_panic_to_stderr;
 
 format_panic_to_stderr();
 
-let results = vec![Ok(1u32), Ok(2u32), Err("oops".to_problem())];
+let results = vec![Ok(1u32), Ok(2u32), Err("oops".to_problem_message())];
 
 // Prints message: Failed to collect numbers due to: oops
 let _ok: Vec<u32> = results.into_iter()
@@ -273,7 +273,7 @@ use problem::prelude::*;
 
 # #[cfg(feature = "log")]
 # fn test_with_log_feature() {
-let results = vec![Ok(1u32), Ok(2), Err("oops".to_problem()), Ok(3), Err("oh".to_problem()), Ok(4)];
+let results = vec![Ok(1u32), Ok(2), Err("oops".to_problem_message()), Ok(3), Err("oh".to_problem_message()), Ok(4)];
 
 // Logs warning message: Continuing with error oops
 // Logs warning message: Continuing with error oh
@@ -353,11 +353,13 @@ use std::error::Error;
 use std::fmt::{self, Display, Write};
 use std::panic;
 
+// TODO: use impl in arguments more if makes sense
+
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
 pub mod prelude {
     pub use super::{
-        in_context_of, in_context_of_with, FailedTo, FailedToIter, OptionErrorToProblem,
-        OptionToProblem, Problem, ProblemWhile, ResultOptionToProblem, ResultToProblem, ToProblem,
+        in_context_of, in_context_of_with, FailedTo, FailedToIter, MapProblemMessage,
+        OptionToProblemMessage, Problem, ProblemWhile, ToProblemMessage, MapProblemOrMessage, MapProblemMessageOrMessage
     };
 
     #[cfg(feature = "log")]
@@ -380,8 +382,8 @@ pub enum Problem {
 
 impl Problem {
     /// Create `Problem` from any type implementing `Display`
-    pub fn from_message(msg: impl Display) -> Problem {
-        Problem::Cause(Cause::Message(msg.to_string()), format_backtrace())
+    pub fn from_message(message: impl Display) -> Problem {
+        Problem::Cause(Cause::Message(message.to_string()), format_backtrace())
     }
 
     /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
@@ -443,97 +445,120 @@ impl Display for Problem {
             Problem::Cause(cause, Some(backtrace)) => {
                 write!(f, "{}\n\t--- Cause\n{}", cause, backtrace)
             }
-            Problem::Context(msg, inner) => match inner.as_ref() {
+            Problem::Context(message, inner) => match inner.as_ref() {
                 cause @ &Problem::Cause(..) => {
-                    write!(f, "while {} got error caused by: {}", msg, cause)
+                    write!(f, "while {} got error caused by: {}", message, cause)
                 }
-                inner => write!(f, "while {}, {}", msg, inner),
+                inner => write!(f, "while {}, {}", message, inner),
             },
         }
     }
 }
 
-/// Every type implementing `Error` trait can implicitly be converted to Problem via `?` operator
-impl<E> From<E> for Problem
-where
-    E: Into<Box<dyn Error>>,
-{
-    fn from(error: E) -> Problem {
-        Problem::from_error(error)
-    }
-}
-
-/// Explicit conversion to `Problem`
-pub trait ToProblem {
-    fn to_problem(self) -> Problem;
+/// Explicit conversion to `Problem` via `Problem::from_message(message)`
+pub trait ToProblemMessage {
+    fn to_problem_message(self) -> Problem;
 }
 
 /// `T` that has `Display` implemented can be converted to `Problem`
-impl<T> ToProblem for T
+impl<T> ToProblemMessage for T
 where
     T: Display,
 {
-    fn to_problem(self) -> Problem {
+    fn to_problem_message(self) -> Problem {
         Problem::from_message(self)
     }
 }
 
-/// Option of `T` that has `Display` implemented can be converted to `Problem` that displays "<unknown error>" for `None` variant
-pub trait OptionErrorToProblem {
+/// Explicit conversion to `Problem` via `Problem::from_error(err)`
+pub trait ToProblem {
     fn to_problem(self) -> Problem;
 }
 
-impl<E> OptionErrorToProblem for Option<E>
+/// `T` that has `Error` implemented can be converted to `Problem`
+impl<T> ToProblem for T
+where
+    T: Into<Box<dyn Error>>,
+{
+    fn to_problem(self) -> Problem {
+        Problem::from_error(self)
+    }
+}
+
+/// Every type implementing `Error` trait can implicitly be converted to `Problem` via `?` operator
+impl<E> From<E> for Problem
 where
     E: ToProblem,
 {
-    fn to_problem(self) -> Problem {
-        self.map(ToProblem::to_problem)
-            .unwrap_or(Problem::from_message("<unknown error>"))
+    fn from(error: E) -> Problem {
+        error.to_problem()
     }
+}
+
+/// Map type containing error to type containing `Problem`
+pub trait MapProblemMessage {
+    type ProblemCarrier;
+    fn map_problem_message(self) -> Self::ProblemCarrier;
 }
 
 /// Mapping `Result` with error to `Result` with `Problem`
-pub trait ResultToProblem<O> {
-    fn map_problem(self) -> Result<O, Problem>;
-}
-
-impl<O, E> ResultToProblem<O> for Result<O, E>
+impl<O, E> MapProblemMessage for Result<O, E>
 where
-    E: ToProblem,
+    E: ToProblemMessage,
 {
-    fn map_problem(self) -> Result<O, Problem> {
-        self.map_err(|e| e.to_problem())
+    type ProblemCarrier = Result<O, Problem>;
+    fn map_problem_message(self) -> Result<O, Problem> {
+        self.map_err(|e| e.to_problem_message())
     }
 }
 
-/// Mapping `Result` with `Option<Error>` to `Result` with `Problem`
-pub trait ResultOptionToProblem<O> {
-    fn map_problem(self) -> Result<O, Problem>;
+pub trait MapProblemOrMessage {
+    type ProblemCarrier;
+    fn map_problem_or_message(self, message: impl Display) -> Self::ProblemCarrier;
 }
 
-impl<O, E> ResultOptionToProblem<O> for Result<O, Option<E>>
+/// Mapping `Result` with `Option<E>` to `Result` with `Problem` where `E` implements `Error`
+impl<O, E> MapProblemOrMessage for Result<O, Option<E>>
 where
     E: ToProblem,
 {
-    fn map_problem(self) -> Result<O, Problem> {
-        self.map_err(OptionErrorToProblem::to_problem)
+    type ProblemCarrier = Result<O, Problem>;
+
+    fn map_problem_or_message(self, message: impl Display) -> Result<O, Problem> {
+        self.map_err(|e| e.map(ToProblem::to_problem).unwrap_or(Problem::from_message(message)))
+    }
+}
+
+pub trait MapProblemMessageOrMessage {
+    type ProblemCarrier;
+    fn map_problem_message_or_message(self, message: impl Display) -> Self::ProblemCarrier;
+}
+
+/// Mapping `Result` with `Option<E>` to `Result` with message `Problem`
+impl<O, E> MapProblemMessageOrMessage for Result<O, Option<E>>
+where
+    E: ToProblemMessage,
+{
+    type ProblemCarrier = Result<O, Problem>;
+
+    fn map_problem_message_or_message(self, message: impl Display) -> Result<O, Problem> {
+        self.map_err(|e| e.map(ToProblemMessage::to_problem_message).unwrap_or(Problem::from_message(message)))
     }
 }
 
 /// Map `Option` to `Result` with `Problem`
-pub trait OptionToProblem<O> {
-    fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem>
+pub trait OptionToProblemMessage<O> {
+    fn ok_or_problem<M>(self, message: M) -> Result<O, Problem>
     where
-        M: Display;
+        M: ToProblemMessage;
 }
 
-impl<O> OptionToProblem<O> for Option<O> {
-    fn ok_or_problem<M>(self, msg: M) -> Result<O, Problem>
+impl<O> OptionToProblemMessage<O> for Option<O> {
+    fn ok_or_problem<M>(self, message: M) -> Result<O, Problem>
     where
-        M: Display,
+        M: ToProblemMessage,
     {
-        self.ok_or_else(|| Problem::from_message(msg))
+        self.ok_or_else(|| message.to_problem_message())
     }
 }
 
@@ -542,10 +567,10 @@ pub trait ProblemWhile {
     type WithContext;
 
     /// Add context information from `Display` type
-    fn problem_while(self, msg: impl Display) -> Self::WithContext;
+    fn problem_while(self, message: impl Display) -> Self::WithContext;
 
     /// Add context information from function call
-    fn problem_while_with<F, M>(self, msg: F) -> Self::WithContext
+    fn problem_while_with<F, M>(self, message: F) -> Self::WithContext
     where
         F: FnOnce() -> M,
         M: Display;
@@ -554,16 +579,16 @@ pub trait ProblemWhile {
 impl ProblemWhile for Problem {
     type WithContext = Problem;
 
-    fn problem_while(self, msg: impl Display) -> Problem {
-        Problem::Context(msg.to_string(), Box::new(self))
+    fn problem_while(self, message: impl Display) -> Problem {
+        Problem::Context(message.to_string(), Box::new(self))
     }
 
-    fn problem_while_with<F, M>(self, msg: F) -> Problem
+    fn problem_while_with<F, M>(self, message: F) -> Problem
     where
         F: FnOnce() -> M,
         M: Display,
     {
-        Problem::Context(msg().to_string(), Box::new(self))
+        Problem::Context(message().to_string(), Box::new(self))
     }
 }
 
@@ -573,59 +598,59 @@ where
 {
     type WithContext = Result<O, Problem>;
 
-    fn problem_while(self, msg: impl Display) -> Result<O, Problem> {
-        self.map_err(|err| err.into().problem_while(msg))
+    fn problem_while(self, message: impl Display) -> Result<O, Problem> {
+        self.map_err(|err| err.into().problem_while(message))
     }
 
-    fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
+    fn problem_while_with<F, M>(self, message: F) -> Result<O, Problem>
     where
         F: FnOnce() -> M,
         M: Display,
     {
-        self.map_err(|err| err.into().problem_while(msg()))
+        self.map_err(|err| err.into().problem_while(message()))
     }
 }
 
 /// Executes closure with `problem_while` context
-pub fn in_context_of<O, M, B>(msg: M, body: B) -> Result<O, Problem>
+pub fn in_context_of<O, M, B>(message: M, body: B) -> Result<O, Problem>
 where
     M: Display,
     B: FnOnce() -> Result<O, Problem>,
 {
-    body().problem_while(msg)
+    body().problem_while(message)
 }
 
 /// Executes closure with `problem_while_with` context
-pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem>
+pub fn in_context_of_with<O, F, M, B>(message: F, body: B) -> Result<O, Problem>
 where
     F: FnOnce() -> M,
     M: Display,
     B: FnOnce() -> Result<O, Problem>,
 {
-    body().problem_while_with(msg)
+    body().problem_while_with(message)
 }
 
 /// Extension of `Result` that allows program to panic with `Display` message on `Err` for fatal application errors that are not bugs
 pub trait FailedTo<O> {
-    fn or_failed_to(self, msg: impl Display) -> O;
+    fn or_failed_to(self, message: impl Display) -> O;
 }
 
 impl<O, E> FailedTo<O> for Result<O, E>
 where
     E: Into<Problem>,
 {
-    fn or_failed_to(self, msg: impl Display) -> O {
+    fn or_failed_to(self, message: impl Display) -> O {
         match self {
-            Err(err) => panic!("Failed to {} due to: {}", msg, err.into()),
+            Err(err) => panic!("Failed to {} due to: {}", message, err.into()),
             Ok(ok) => ok,
         }
     }
 }
 
 impl<O> FailedTo<O> for Option<O> {
-    fn or_failed_to(self, msg: impl Display) -> O {
+    fn or_failed_to(self, message: impl Display) -> O {
         match self {
-            None => panic!("Failed to {}", msg),
+            None => panic!("Failed to {}", message),
             Some(ok) => ok,
         }
     }
@@ -653,7 +678,7 @@ where
 
 /// Convert `Iterator` of `Result<O, E>` to iterator of `O` and panic on first `E` with problem message
 pub trait FailedToIter<O, E>: Sized {
-    fn or_failed_to(self, msg: impl Display) -> ProblemIter<Self>;
+    fn or_failed_to(self, message: impl Display) -> ProblemIter<Self>;
 }
 
 impl<I, O, E> FailedToIter<O, E> for I
@@ -661,10 +686,10 @@ where
     I: Iterator<Item = Result<O, E>>,
     E: Into<Problem>,
 {
-    fn or_failed_to(self, msg: impl Display) -> ProblemIter<Self> {
+    fn or_failed_to(self, message: impl Display) -> ProblemIter<Self> {
         ProblemIter {
             inner: self,
-            message: msg.to_string(),
+            message: message.to_string(),
         }
     }
 }
@@ -964,7 +989,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: boom!")]
     fn test_option_errors() {
         Err(Some(io::Error::new(io::ErrorKind::InvalidInput, "boom!")))
-            .map_problem()
+            .map_problem_or_message("<unknown error>")
             .or_failed_to("foo")
     }
 
@@ -972,7 +997,7 @@ mod tests {
     #[should_panic(expected = "Failed to foo due to: <unknown error>")]
     fn test_result_option_errors_unknown() {
         let err: Result<(), Option<io::Error>> = Err(None);
-        err.map_problem().or_failed_to("foo")
+        err.map_problem_or_message("<unknown error>").or_failed_to("foo")
     }
 
     #[test]
@@ -984,7 +1009,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Failed to foo due to: omg!")]
     fn test_result_iter_or_failed_to() {
-        let results = vec![Ok(1u32), Ok(2u32), Err("omg!".to_problem())];
+        let results = vec![Ok(1u32), Ok(2u32), Err("omg!".to_problem_message())];
         let _ok = results.into_iter().or_failed_to("foo").collect::<Vec<_>>();
     }
 

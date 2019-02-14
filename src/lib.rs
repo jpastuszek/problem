@@ -403,11 +403,6 @@ impl Problem {
         Problem::Cause(Cause::Message(message), format_backtrace())
     }
 
-    /// Add context information to this `Problem` instance
-    pub fn while_context(self, msg: impl Display) -> Problem {
-        Problem::Context(msg.to_string(), Box::new(self))
-    }
-
     /// Get backtrace associated with this `Problem` instance if available
     pub fn backtrace(&self) -> Option<&str> {
         match self {
@@ -542,21 +537,44 @@ impl<O> OptionToProblem<O> for Option<O> {
     }
 }
 
-/// Add context to `Result` with `Problem` or that can be implicitly converted to `Problem`
-pub trait ProblemWhile<O> {
-    fn problem_while(self, msg: impl Display) -> Result<O, Problem>;
-    fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
+/// Add context to `T`; convert to `Problem` if needed
+pub trait ProblemWhile {
+    type WithContext;
+
+    /// Add context information from `Display` type
+    fn problem_while(self, msg: impl Display) -> Self::WithContext;
+
+    /// Add context information from function call
+    fn problem_while_with<F, M>(self, msg: F) -> Self::WithContext
     where
         F: FnOnce() -> M,
         M: Display;
 }
 
-impl<O, E> ProblemWhile<O> for Result<O, E>
+impl ProblemWhile for Problem {
+    type WithContext = Problem;
+
+    fn problem_while(self, msg: impl Display) -> Problem {
+        Problem::Context(msg.to_string(), Box::new(self))
+    }
+
+    fn problem_while_with<F, M>(self, msg: F) -> Problem
+    where
+        F: FnOnce() -> M,
+        M: Display,
+    {
+        Problem::Context(msg().to_string(), Box::new(self))
+    }
+}
+
+impl<O, E> ProblemWhile for Result<O, E>
 where
     E: Into<Problem>,
 {
+    type WithContext = Result<O, Problem>;
+
     fn problem_while(self, msg: impl Display) -> Result<O, Problem> {
-        self.map_err(|err| err.into().while_context(msg))
+        self.map_err(|err| err.into().problem_while(msg))
     }
 
     fn problem_while_with<F, M>(self, msg: F) -> Result<O, Problem>
@@ -564,7 +582,7 @@ where
         F: FnOnce() -> M,
         M: Display,
     {
-        self.map_err(|err| err.into().while_context(msg()))
+        self.map_err(|err| err.into().problem_while(msg()))
     }
 }
 
@@ -993,8 +1011,8 @@ mod tests {
     #[cfg(feature = "backtrace")]
     fn test_problem_backtrace() {
         let p = Problem::from_message("foo")
-            .while_context("bar")
-            .while_context("baz");
+            .problem_while("bar")
+            .problem_while("baz");
 
         if let Ok("1") = std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str) {
             assert!(p.backtrace().is_some());

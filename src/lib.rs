@@ -381,24 +381,18 @@ pub enum Problem {
 }
 
 impl Problem {
+    /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
+    pub fn from_error(error: impl Into<Box<dyn Error>>) -> Problem {
+        Problem::Cause(Cause::Error(error.into()), format_backtrace())
+    }
+
     /// Create `Problem` from any type implementing `Display`
     pub fn from_message(message: impl Display) -> Problem {
         Problem::Cause(Cause::Message(message.to_string()), format_backtrace())
     }
 
-    /// Create `Problem` from types implementing `Error` so that `Error::cause` chain is followed through in the `Display` message
-    pub fn from_error<E>(error: E) -> Problem
-    where
-        E: Into<Box<dyn Error>>,
-    {
-        Problem::Cause(Cause::Error(error.into()), format_backtrace())
-    }
-
     /// Same as `Problem::from_error` but stores only final message and does not take ownership of the error
-    pub fn from_error_message<E>(error: &E) -> Problem
-    where
-        E: Error
-    {
+    pub fn from_error_message(error: &impl Error) -> Problem {
         let mut message = String::new();
         write_error_message(error, &mut message).unwrap();
 
@@ -455,21 +449,6 @@ impl Display for Problem {
     }
 }
 
-/// Explicit conversion to `Problem` via `Problem::from_message(message)`
-pub trait ToProblemMessage {
-    fn to_problem_message(self) -> Problem;
-}
-
-/// `T` that has `Display` implemented can be converted to `Problem`
-impl<T> ToProblemMessage for T
-where
-    T: Display,
-{
-    fn to_problem_message(self) -> Problem {
-        Problem::from_message(self)
-    }
-}
-
 /// Explicit conversion to `Problem` via `Problem::from_error(err)`
 pub trait ToProblem {
     fn to_problem(self) -> Problem;
@@ -485,6 +464,21 @@ where
     }
 }
 
+/// Explicit conversion to `Problem` via `Problem::from_message(message)`
+pub trait ToProblemMessage {
+    fn to_problem_message(self) -> Problem;
+}
+
+/// `T` that has `Display` implemented can be converted to `Problem`
+impl<T> ToProblemMessage for T
+where
+    T: Display,
+{
+    fn to_problem_message(self) -> Problem {
+        Problem::from_message(self)
+    }
+}
+
 /// Every type implementing `Error` trait can implicitly be converted to `Problem` via `?` operator
 impl<E> From<E> for Problem
 where
@@ -495,13 +489,30 @@ where
     }
 }
 
-/// Map type containing error to type containing `Problem`
+/// Map type containing error to type containing `Problem` storing `Box<dyn Error>`
+pub trait MapProblem {
+    type ProblemCarrier;
+    fn map_problem(self) -> Self::ProblemCarrier;
+}
+
+/// Mapping `Result` with error to `Result` with `Problem` storing `Box<dyn Error>`
+impl<O, E> MapProblem for Result<O, E>
+where
+    E: Into<Problem>,
+{
+    type ProblemCarrier = Result<O, Problem>;
+    fn map_problem(self) -> Result<O, Problem> {
+        self.map_err(|e| e.into())
+    }
+}
+
+/// Map type containing error to type containing `Problem` storing error message
 pub trait MapProblemMessage {
     type ProblemCarrier;
     fn map_problem_message(self) -> Self::ProblemCarrier;
 }
 
-/// Mapping `Result` with error to `Result` with `Problem`
+/// Mapping `Result` with error to `Result` with `Problem` storing error message
 impl<O, E> MapProblemMessage for Result<O, E>
 where
     E: ToProblemMessage,
@@ -520,12 +531,12 @@ pub trait MapProblemOrMessage {
 /// Mapping `Result` with `Option<E>` to `Result` with `Problem` where `E` implements `Error`
 impl<O, E> MapProblemOrMessage for Result<O, Option<E>>
 where
-    E: ToProblem,
+    E: Into<Problem>,
 {
     type ProblemCarrier = Result<O, Problem>;
 
     fn map_problem_or_message(self, message: impl Display) -> Result<O, Problem> {
-        self.map_err(|e| e.map(ToProblem::to_problem).unwrap_or(Problem::from_message(message)))
+        self.map_err(|e| e.map(Into::into).unwrap_or(Problem::from_message(message)))
     }
 }
 
@@ -922,11 +933,34 @@ mod tests {
     }
 
     #[test]
+    fn test_convertion() {
+        let _: Problem = io::Error::new(io::ErrorKind::InvalidInput, "boom!").into();
+
+        let problem: Problem = "boom!".into(); // WAT? -> StringError("boom!")
+        match problem {
+            Problem::Cause(Cause::Error(_), _) => (),
+            _ => panic!("expecte error problem"),
+        }
+    }
+
+    #[test]
     #[should_panic(
         expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!"
     )]
     fn test_integration() {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
+            .problem_while("parsing input")
+            .problem_while("processing input data")
+            .problem_while("processing object")
+            .or_failed_to("complete processing task")
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!"
+    )]
+    fn test_integration_message() {
+        Err("boom!")
             .problem_while("parsing input")
             .problem_while("processing input data")
             .problem_while("processing object")

@@ -606,39 +606,41 @@ impl<O> FailedTo<O> for Option<O> {
 }
 
 /// Iterator that will panic on first error with message displaying `Display` formatted message
-pub struct ProblemIter<I> {
+pub struct ProblemIter<I, M> {
     inner: I,
-    message: String,
+    message: M,
 }
 
-impl<I, O, E> Iterator for ProblemIter<I>
+impl<I, O, E, M> Iterator for ProblemIter<I, M>
 where
     I: Iterator<Item = Result<O, E>>,
     E: Into<Problem>,
+    M: Display,
 {
     type Item = O;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
             .next()
-            .map(|res| res.or_failed_to(self.message.as_str()))
+            .map(|res| res.or_failed_to(&self.message))
     }
 }
 
 /// Convert `Iterator` of `Result<O, E>` to iterator of `O` and panic on first `E` with problem message
-pub trait FailedToIter<O, E>: Sized {
-    fn or_failed_to(self, message: impl Display) -> ProblemIter<Self>;
+pub trait FailedToIter<O, E, M>: Sized {
+    fn or_failed_to(self, message: M) -> ProblemIter<Self, M>;
 }
 
-impl<I, O, E> FailedToIter<O, E> for I
+impl<I, O, E, M> FailedToIter<O, E, M> for I
 where
     I: Iterator<Item = Result<O, E>>,
     E: Into<Problem>,
+    M: Display,
 {
-    fn or_failed_to(self, message: impl Display) -> ProblemIter<Self> {
+    fn or_failed_to(self, message: M) -> ProblemIter<Self, M> {
         ProblemIter {
             inner: self,
-            message: message.to_string(),
+            message: message,
         }
     }
 }

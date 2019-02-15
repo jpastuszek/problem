@@ -653,23 +653,11 @@ pub mod logged {
         E: Into<Problem>,
     {
         fn ok_or_log_warn(self) -> Option<O> {
-            match self {
-                Err(err) => {
-                    warn!("Continuing with error {}", err.into());
-                    None
-                }
-                Ok(ok) => Some(ok),
-            }
+            self.map_err(|err| warn!("Continuing with error: {}", err.into())).ok()
         }
 
         fn ok_or_log_error(self) -> Option<O> {
-            match self {
-                Err(err) => {
-                    error!("Continuing with error {}", err.into());
-                    None
-                }
-                Ok(ok) => Some(ok),
-            }
+            self.map_err(|err| error!("Continuing with error: {}", err.into())).ok()
         }
     }
 
@@ -733,6 +721,7 @@ fn format_backtrace() -> Option<String> {
     None
 }
 
+//TODO: use Rust format for trace?
 #[cfg(feature = "backtrace")]
 #[inline(always)]
 fn format_backtrace() -> Option<String> {
@@ -1009,5 +998,35 @@ mod tests {
         } else {
             assert!(p.backtrace().is_none());
         }
+    }
+
+    #[test]
+    #[cfg(feature = "log")]
+    fn test_problem_log_error() {
+        loggerv::init_quiet().ok();
+        let error: Result<(), _> = Err(Baz(Bar(Foo)));
+        error.ok_or_log_error();
+    }
+
+    #[test]
+    #[cfg(feature = "log")]
+    fn test_problem_log_warn() {
+        loggerv::init_quiet().ok();
+        let error: Result<(), _> = Err(Baz(Bar(Foo)));
+        error.ok_or_log_warn();
+    }
+
+    #[test]
+    #[cfg(feature = "log")]
+    fn test_problem_log_iter_error() {
+        loggerv::init_quiet().ok();
+        assert_eq!(vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)].into_iter().ok_or_log_error().flatten().collect::<Vec<_>>(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    #[cfg(feature = "log")]
+    fn test_problem_log_iter_warn() {
+        loggerv::init_quiet().ok();
+        assert_eq!(vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)].into_iter().ok_or_log_warn().flatten().collect::<Vec<_>>(), vec![1, 2, 3]);
     }
 }

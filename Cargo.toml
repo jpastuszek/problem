@@ -22,3 +22,4 @@ skeptic = "0.13.3"
 
 [dev-dependencies]
 skeptic = "0.13.3"
+loggerv = "0.7.1"

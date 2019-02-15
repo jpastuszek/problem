@@ -408,10 +408,10 @@ impl Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(context) = self.context.last() {
             write!(f, "while {}", context)?;
-        } 
+        }
         for context in self.context.iter().rev().skip(1) {
             write!(f, ", while {}", context)?;
-        } 
+        }
         if !self.context.is_empty() {
             write!(f, " got error caused by: ")?;
         }
@@ -614,9 +614,7 @@ where
     type Item = O;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .map(|res| res.or_failed_to(&self.message))
+        self.inner.next().map(|res| res.or_failed_to(&self.message))
     }
 }
 

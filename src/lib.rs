@@ -721,38 +721,38 @@ fn format_backtrace() -> Option<String> {
     None
 }
 
-//TODO: use Rust format for trace?
+/* Use default Rust format like:
+   0: std::sys_common::backtrace::_print
+             at C:\projects\rust\src\libstd\sys_common\backtrace.rs:94
+   1: std::sys_common::backtrace::_print
+             at C:\projects\rust\src\libstd\sys_common\backtrace.rs:71
+*/
 #[cfg(feature = "backtrace")]
 #[inline(always)]
 fn format_backtrace() -> Option<String> {
     if let Ok("1") = std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str) {
         let mut backtrace = String::new();
+        let mut frame_no: u32 = 0;
 
         backtrace::trace(|frame| {
             let ip = frame.ip();
 
-            backtrace.push_str("\tat ");
+            if frame_no > 0 {
+                backtrace.push_str("\n");
+            }
 
             backtrace::resolve(ip, |symbol| {
                 if let Some(name) = symbol.name() {
-                    backtrace.push_str(&name.to_string());
+                    write!(backtrace, "{:4}: {}", frame_no, name).unwrap();
                 }
-                backtrace.push_str("(");
-                if let Some(filename) = symbol.filename() {
-                    backtrace.push_str(&filename.display().to_string());
+                if let (Some(filename), Some(lineno)) = (symbol.filename(), symbol.lineno()) {
+                    write!(backtrace, "\n             at {}:{}", filename.display(), lineno).unwrap();
                 }
-                if let Some(lineno) = symbol.lineno() {
-                    backtrace.push_str(":");
-                    backtrace.push_str(&lineno.to_string());
-                }
-                backtrace.push_str(")");
             });
 
-            backtrace.push_str("\n");
+            frame_no += 1;
             true // keep going to the next frame
         });
-
-        backtrace.pop(); // last \n
 
         Some(backtrace)
     } else {

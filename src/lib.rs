@@ -688,11 +688,13 @@ pub mod logged {
         E: Into<Problem>,
     {
         fn ok_or_log_warn(self) -> Option<O> {
-            self.map_err(|err| warn!("Continuing with error: {}", err.into())).ok()
+            self.map_err(|err| warn!("Continuing with error: {}", err.into()))
+                .ok()
         }
 
         fn ok_or_log_error(self) -> Option<O> {
-            self.map_err(|err| error!("Continuing with error: {}", err.into())).ok()
+            self.map_err(|err| error!("Continuing with error: {}", err.into()))
+                .ok()
         }
     }
 
@@ -781,7 +783,13 @@ fn format_backtrace() -> Option<String> {
                     write!(backtrace, "{:4}: {}", frame_no, name).unwrap();
                 }
                 if let (Some(filename), Some(lineno)) = (symbol.filename(), symbol.lineno()) {
-                    write!(backtrace, "\n             at {}:{}", filename.display(), lineno).unwrap();
+                    write!(
+                        backtrace,
+                        "\n             at {}:{}",
+                        filename.display(),
+                        lineno
+                    )
+                    .unwrap();
                 }
             });
 
@@ -799,28 +807,31 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
     let mut message = String::new();
 
     if let Some(location) = panic.location() {
-        message.push_str(&format!(
+        write!(
+            message,
             "Panicked in {}:{}:{}: ",
             location.file(),
             location.line(),
             location.column()
-        ));
-    };
+        )
+        .ok();
+    }
 
+    // Try different things
     if let Some(value) = panic.payload().downcast_ref::<String>() {
         message.push_str(&value);
     } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
         message.push_str(value);
     } else if let Some(value) = panic.payload().downcast_ref::<&Error>() {
-        message.push_str(&format!("{} ({:?})", value, value));
+        write!(message, "{} ({:?})", value, value).ok();
     } else {
-        message.push_str(&format!("{:?}", panic));
-    };
+        write!(message, "{:?}", panic).ok();
+    }
 
     if let Some(backtrace) = backtrace {
         message.push_str("\n--- Panicked\n");
         message.push_str(&backtrace);
-    };
+    }
 
     message
 }
@@ -1055,13 +1066,27 @@ mod tests {
     #[cfg(feature = "log")]
     fn test_problem_log_iter_error() {
         loggerv::init_quiet().ok();
-        assert_eq!(vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)].into_iter().ok_or_log_error().flatten().collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(
+            vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)]
+                .into_iter()
+                .ok_or_log_error()
+                .flatten()
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
     #[cfg(feature = "log")]
     fn test_problem_log_iter_warn() {
         loggerv::init_quiet().ok();
-        assert_eq!(vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)].into_iter().ok_or_log_warn().flatten().collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(
+            vec![Ok(1), Err(Foo), Err(Foo), Ok(2), Err(Foo), Ok(3)]
+                .into_iter()
+                .ok_or_log_warn()
+                .flatten()
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 }

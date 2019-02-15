@@ -281,48 +281,83 @@ assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
 When compiled with `backtrace` feature (default) formatting of backtraces for `Problem` cause and `panic!` locations can be enabled via `RUST_BACKTRACE=1` environment variable.
 
 ```noformat
-Fatal error: Panicked in src/lib.rs:189:25: Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!
-        --- Cause
-        at backtrace::backtrace::trace_unsynchronized::h7e40b70e3b5d7257(/Users/wcc/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57)
-        at problem::Problem::cause::h8e82f78cae379944(/Users/wcc/Documents/problem/src/lib.rs:17)
-        at <problem::Problem as core::convert::From<E>>::from::h68fcd01f7485d6fd(/Users/wcc/Documents/problem/src/lib.rs:55)
-        at <T as core::convert::Into<U>>::into::hf86686e788a07f6b(/Users/wcc/Documents/problem/libcore/convert.rs:456)
-        at <core::result::Result<O, E> as problem::ProblemWhile<O>>::problem_while::{{closure}}::h712c2996b4c3f676(/Users/wcc/Documents/problem/src/lib.rs:147)
-        at <core::result::Result<T, E>>::map_err::h6da0ba4797049470(/Users/wcc/Documents/problem/libcore/result.rs:530)
-        at <core::result::Result<O, E> as problem::ProblemWhile<O>>::problem_while::h108bd26e9cdec72e(/Users/wcc/Documents/problem/src/lib.rs:147)
-        at problem::tests::test_panic_format_stderr_problem::h519245df9f30ee8f(/Users/wcc/Documents/problem/src/lib.rs:412)
-        at problem::tests::test_panic_format_stderr_problem::{{closure}}::haaae053a88c4688a(/Users/wcc/Documents/problem/src/lib.rs:410)
-        at core::ops::function::FnOnce::call_once::h805a1d08e5489f20(/Users/wcc/Documents/problem/libcore/ops/function.rs:238)
-        at <F as alloc::boxed::FnBox<A>>::call_box::h7cd9458e96c61134(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/liballoc/boxed.rs:672)
-        at ___rust_maybe_catch_panic(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libpanic_unwind/lib.rs:102)
-        at std::sys_common::backtrace::__rust_begin_short_backtrace::h907b48cdce2bf28d(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libtest/lib.rs:1423)
-        at std::panicking::try::do_call::hffc427c76ef62020(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/panicking.rs:310)
-        at ___rust_maybe_catch_panic(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libpanic_unwind/lib.rs:102)
-        at <F as alloc::boxed::FnBox<A>>::call_box::h44749feefaa83f3d(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/thread/mod.rs:408)
-        at std::sys_common::thread::start_thread::h24d08beb3985b9d2(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/sys_common/thread.rs:24)
-        at std::sys::unix::thread::Thread::new::thread_start::h9ca5dbae56c6730a(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/sys/unix/thread.rs:90)
-        at __pthread_body()
-        at __pthread_start()
-        --- Panicked
-        at backtrace::backtrace::trace_unsynchronized::h7e40b70e3b5d7257(/Users/wcc/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57)
-        at problem::format_panic_to_stderr::{{closure}}::h5e5215e229ccf82b(/Users/wcc/Documents/problem/src/lib.rs:319)
-        at std::panicking::rust_panic_with_hook::h11860e91fb60d90b(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/panicking.rs:480)
-        at std::panicking::continue_panic_fmt::h28d8e12e50184e99(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/panicking.rs:390)
-        at std::panicking::begin_panic_fmt::h2bdefd173f570a0b(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/panicking.rs:345)
-        at <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h23df6bc9680c971b(/Users/wcc/Documents/problem/src/lib.rs:189)
-        at problem::tests::test_panic_format_stderr_problem::h519245df9f30ee8f(/Users/wcc/Documents/problem/src/lib.rs:417)
-        at problem::tests::test_panic_format_stderr_problem::{{closure}}::haaae053a88c4688a(/Users/wcc/Documents/problem/src/lib.rs:410)
-        at core::ops::function::FnOnce::call_once::h805a1d08e5489f20(/Users/wcc/Documents/problem/libcore/ops/function.rs:238)
-        at <F as alloc::boxed::FnBox<A>>::call_box::h7cd9458e96c61134(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/liballoc/boxed.rs:672)
-        at ___rust_maybe_catch_panic(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libpanic_unwind/lib.rs:102)
-        at std::sys_common::backtrace::__rust_begin_short_backtrace::h907b48cdce2bf28d(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libtest/lib.rs:1423)
-        at std::panicking::try::do_call::hffc427c76ef62020(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/panicking.rs:310)
-        at ___rust_maybe_catch_panic(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libpanic_unwind/lib.rs:102)
-        at <F as alloc::boxed::FnBox<A>>::call_box::h44749feefaa83f3d(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/thread/mod.rs:408)
-        at std::sys_common::thread::start_thread::h24d08beb3985b9d2(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/sys_common/thread.rs:24)
-        at std::sys::unix::thread::Thread::new::thread_start::h9ca5dbae56c6730a(/rustc/abe02cefd6cd1916df62ad7dc80161bea50b72e8/src/libstd/sys/unix/thread.rs:90)
-        at __pthread_body()
-        at __pthread_start()
+Fatal error: Panicked in src/lib.rs:592:35: Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error
+--- Cause
+   0: backtrace::backtrace::trace_unsynchronized::h936094cb968a67c2
+             at /Users/foo/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
+   1: problem::Problem::from_error::h48a8ff9d529f11bb
+             at /Users/foo/Documents/problem/src/lib.rs:370
+   2: <problem::Problem as core::convert::From<E>>::from::hf31b10e28587c494
+             at /Users/foo/Documents/problem/src/lib.rs:435
+   3: <T as core::convert::Into<U>>::into::h85c2279609a448ec
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/convert.rs:455
+   4: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::{{closure}}::he05bcd7535507f2a
+             at /Users/foo/Documents/problem/src/lib.rs:592
+   5: <core::result::Result<T, E>>::unwrap_or_else::h372df670aacfe76e
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/result.rs:774
+   6: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h4caef43db20e9b2f
+             at /Users/foo/Documents/problem/src/lib.rs:592
+   7: problem::tests::test_result_cause_chain::h463bd0663dc29edc
+             at /Users/foo/Documents/problem/src/lib.rs:923
+   8: problem::tests::test_result_cause_chain::{{closure}}::hb10572dbf0a3d9f9
+             at /Users/foo/Documents/problem/src/lib.rs:922
+   9: core::ops::function::FnOnce::call_once::h5b7f0a818ead5b66
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/ops/function.rs:238
+  10: <F as alloc::boxed::FnBox<A>>::call_box::h0b961cc85c049bee
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/liballoc/boxed.rs:673
+  11: ___rust_maybe_catch_panic
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libpanic_unwind/lib.rs:102
+  12: std::sys_common::backtrace::__rust_begin_short_backtrace::h07f538384f587585
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libtest/lib.rs:1426
+  13: std::panicking::try::do_call::h4953be8a0738d6ec
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:310
+  14: ___rust_maybe_catch_panic
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libpanic_unwind/lib.rs:102
+  15: <F as alloc::boxed::FnBox<A>>::call_box::h5a5d3b35dc8857f3
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/thread/mod.rs:476
+  16: std::sys::unix::thread::Thread::new::thread_start::hb66fd5e16b37cfd7
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/sys_common/thread.rs:24
+  17: __pthread_body
+  18: __pthread_start
+--- Panicked
+   0: backtrace::backtrace::trace_unsynchronized::h936094cb968a67c2
+             at /Users/foo/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
+   1: problem::format_panic_to_stderr::{{closure}}::h24ae835f59658f26
+             at /Users/foo/Documents/problem/src/lib.rs:796
+   2: std::panicking::rust_panic_with_hook::h3fe6a67edb032589
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:495
+   3: std::panicking::continue_panic_fmt::hf7169aba6b1afe9c
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:398
+   4: std::panicking::begin_panic_fmt::hb5f6d46d54559b8a
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:353
+   5: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::{{closure}}::he05bcd7535507f2a
+             at /Users/foo/Documents/problem/src/lib.rs:592
+   6: <core::result::Result<T, E>>::unwrap_or_else::h372df670aacfe76e
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/result.rs:774
+   7: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h4caef43db20e9b2f
+             at /Users/foo/Documents/problem/src/lib.rs:592
+   8: problem::tests::test_result_cause_chain::h463bd0663dc29edc
+             at /Users/foo/Documents/problem/src/lib.rs:923
+   9: problem::tests::test_result_cause_chain::{{closure}}::hb10572dbf0a3d9f9
+             at /Users/foo/Documents/problem/src/lib.rs:922
+  10: core::ops::function::FnOnce::call_once::h5b7f0a818ead5b66
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/ops/function.rs:238
+  11: <F as alloc::boxed::FnBox<A>>::call_box::h0b961cc85c049bee
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/liballoc/boxed.rs:673
+  12: ___rust_maybe_catch_panic
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libpanic_unwind/lib.rs:102
+  13: std::sys_common::backtrace::__rust_begin_short_backtrace::h07f538384f587585
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libtest/lib.rs:1426
+  14: std::panicking::try::do_call::h4953be8a0738d6ec
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:310
+  15: ___rust_maybe_catch_panic
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libpanic_unwind/lib.rs:102
+  16: <F as alloc::boxed::FnBox<A>>::call_box::h5a5d3b35dc8857f3
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/thread/mod.rs:476
+  17: std::sys::unix::thread::Thread::new::thread_start::hb66fd5e16b37cfd7
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/sys_common/thread.rs:24
+  18: __pthread_body
+  19: __pthread_start
 ```
 
 ## Access
@@ -419,7 +454,7 @@ impl Display for Problem {
         write_error_message(self.error.as_ref(), f)?;
 
         if let Some(backtrace) = self.backtrace.as_ref() {
-            write!(f, "\n\t--- Cause\n{}", backtrace)?;
+            write!(f, "\n--- Cause\n{}", backtrace)?;
         }
 
         Ok(())
@@ -783,7 +818,7 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
     };
 
     if let Some(backtrace) = backtrace {
-        message.push_str("\n\t--- Panicked\n");
+        message.push_str("\n--- Panicked\n");
         message.push_str(&backtrace);
     };
 

@@ -589,19 +589,13 @@ where
     E: Into<Problem>,
 {
     fn or_failed_to(self, message: impl Display) -> O {
-        match self {
-            Err(err) => panic!("Failed to {} due to: {}", message, err.into()),
-            Ok(ok) => ok,
-        }
+        self.unwrap_or_else(|err| panic!("Failed to {} due to: {}", message, err.into()))
     }
 }
 
 impl<O> FailedTo<O> for Option<O> {
     fn or_failed_to(self, message: impl Display) -> O {
-        match self {
-            None => panic!("Failed to {}", message),
-            Some(ok) => ok,
-        }
+        self.unwrap_or_else(|| panic!("Failed to {}", message))
     }
 }
 

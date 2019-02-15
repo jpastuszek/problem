@@ -12,6 +12,7 @@ This library introduces `Problem` type which can be used on high level APIs for 
 * Produce detailed user friendly error messages with `Display` formatting including error cause chain and backtrace (when requested).
 * Make it convenient to add context to error message in different situations.
 * Make it convenient to report (print or log) or abort program on error in different situations.
+* Make it easy to construct `Problem` ad-hock (e.g. from string literal).
 * Low effort integration with existing error types and program flows.
 * Minimize performance impact on good path.
 

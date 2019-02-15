@@ -1,26 +1,27 @@
 /*!
-This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line program) or prototype libraries for which error handling boils down to:
+This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line programs or prototype libraries) for which error handling boils down to:
 * reporting error message (e.g. log with `error!` macro),
 * aborting program on error other than a bug (e.g. using `panic!` macro),
-* ignoring error (e.g. using `Result::ok`).
+* bubbling up errors (e.g. with `?`),
+* ignoring errors (e.g. using `Result::ok`).
 
 # `Problem` type
-The purpose of `Problem` is to capture error, backtrace (if enabled) and any additional context information and present it in readable way via `Display` implementation.
+The purpose of `Problem` is to capture error, backtrace (if enabled) and any additional context information and present it in user friendly way via `Display` implementation.
 
-This library also provides may additional extension traits and some functions that make it easy to construct `Problem` type in different scenarios as well as report or abort programs on error.
-It is recommended to import all the types, traits via perlude module: `use problem::prelude::*`.
+This library also provides may additional extension traits and some functions that make it easy to construct `Problem` type in different situations as well as report or abort programs on error.
+It is recommended to import all the types and traits via perlude module: `use problem::prelude::*`.
 
 `Problem` stores error cause information as `Box<dyn Error>` to dealy construction of error message to when it is actually needed.
-Additionally `Problem` can also store backtrace (if enabled) and a chain of additional context messages (`String`).
+Additionally `Problem` can also store backtrace `String` (if enabled) and a chain of additional context messages as `Vec<String>`.
 
-In order to support conversion from types implementing `Error` trait `Problem` does not implement this trait.
+In order to support conversion from arbitary types implementing `Error` trait, `Problem` does not implement this trait.
 
 # Creating `Problem`
 There are multiple ways to crate `Problem` value.
 
 ## Using constructor
 Using `Problem::from_error(error)` if `error` implements `Error` trait (via `Into<Box<dyn Error>>`).
-Note that 'String' and '&str' implements 'Into<Box<dyn Error>>' so `Problem` can be constructed from strings as well.
+Note that `String` and `&str` implement `Into<Box<dyn Error>>` so `Problem` can be constructed directly from strings as well.
 
 ```rust
 use problem::prelude::*;
@@ -31,7 +32,7 @@ Problem::from_error(Box::new(io::Error::new(io::ErrorKind::InvalidInput, "boom!"
 Problem::from_error("boom!");
 ```
 
-Using `Problem::from_error_message(error)` if you don't want to give up ownership of error or only want to keep final message string.
+Use `Problem::from_error_message(error)` if you don't want to give up ownership of error or only want to keep final message string in memory.
 
 ```rust
 use problem::prelude::*;
@@ -54,10 +55,11 @@ fn foo() -> Result<String, Problem> {
     let str = String::from_utf8(vec![0, 123, 255])?;
     Ok(str)
 }
+
 assert_eq!(foo().unwrap_err().to_string(), "invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-If `Error::cause` or `Error::source` is available error message from cause chain will be displayed.
+If `Error::cause` or `Error::source` is available, the error message from cause chain will be displayed.
 
 ```rust
 use problem::prelude::*;
@@ -87,7 +89,7 @@ fn foo() -> Result<String, Problem> {
 assert_eq!(foo().unwrap_err().to_string(), "bad things happened; caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-## By mapping `Result`
+## By explicitly mapping `Result`
 `Result<T, E>` can be mapped into `Result<T, Problem>` with `.map_problem()` function.
 
 ```rust
@@ -98,8 +100,8 @@ let res: Result<(), &'static str> = Err("oops");
 assert_eq!(res.map_problem().unwrap_err().to_string(), "oops");
 ```
 
-## By conversion of Option to Result
-`Option<T>` can be converted into `Result<T, Problem>` with `.ok_or_problem(problem)` function.
+## By conversion of `Option` into `Result`
+`Option<T>` can be converted into `Result<T, Problem>` with `.ok_or_problem(problem)` function where `problem` implements `Into<Problem>`.
 
 ```rust
 use problem::prelude::*;
@@ -110,8 +112,8 @@ assert_eq!(opt.ok_or_problem("oops").unwrap_err().to_string(), "oops");
 ```
 
 ## From `Result` with `Err` containing `Option`
-When working with C libraries actual errors may be unknown and function's `Result` will have `Option<impl Error>` for their `Err` variant type.
-`.map_problem_or()` method is implemented for `Result<O, Option<E>>` and will contain given problem for `Err(None)` variant.
+`.map_problem_or(problem)` method is implemented for `Result<O, Option<E>>` and will map to `Result<O, Problem>` with provided problem for `Err(None)` variant.
+This may be usefult when working with FFI.
 
 ```rust
 use problem::prelude::*;
@@ -123,10 +125,27 @@ assert_eq!(unknown.map_problem_or("unknown error").unwrap_err().to_string(), "un
 assert_eq!(known.map_problem_or("unknown error").unwrap_err().to_string(), "oops");
 ```
 
+There is also `.map_problem_or_else(problem_function)` variant provided that can be used to defer construction of error to error path.
+
+
+```rust
+use problem::prelude::*;
+
+let unknown: Result<(), Option<&'static str>> = Err(None);
+let known: Result<(), Option<&'static str>> = Err(Some("oops"));
+
+assert_eq!(unknown.map_problem_or_else(|| "unknown error").unwrap_err().to_string(), "unknown error");
+assert_eq!(known.map_problem_or_else(|| "unknown error").unwrap_err().to_string(), "oops");
+```
+
 # Adding context to `Problem`
 
+A context information that provides cules on which good path has been taken that led to error can be added to `Problem` object.
+
+Adding context is a good way to convert other error types to `Problem` as well as providing extra information on where that happened.
+
 ## Inline
-Methods `.problem_while(message)` and `.problem_while_with(|| message)` can be called on any `Result` that error type can be implicitly converted to `Problem`.
+Method `.problem_while(message)` can be called on any `Result` that error type can be converted to `Problem` to add context message (via `Dispaly` trait).
 
 ```rust
 use problem::prelude::*;
@@ -136,7 +155,7 @@ let res = String::from_utf8(vec![0, 123, 255]);
 assert_eq!(res.problem_while("creating string").unwrap_err().to_string(), "while creating string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-The `_with` variant can be used to delay computation of error message to the moment when actual `Err` variant has occurred.
+There is also `.problem_while_with(message_function)` variant provided that can be used to defer construction of error to error path.
 
 ```rust
 use problem::prelude::*;
@@ -146,10 +165,11 @@ let res = String::from_utf8(vec![0, 123, 255]);
 assert_eq!(res.problem_while_with(|| "creating string").unwrap_err().to_string(), "while creating string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-## Wrapped
-Functions `in_context_of(message, closure)` and `in_context_of_with(|| message, closure)` can be used to wrap block of code in closure that return `Result`.
+## Using scope and `?`
+Functions `in_context_of(message, closure)` can be used to wrap block of code in a closure that returns `Result`.
+
 This is useful when you want to add context to any error that can happen in the block of code and use `?` operator.
-The return type of the closure needs to be `Result<T, Problem>`.
+The return type of the closure needs to be `Result<T, Problem>` but `?` operator can convert to `Problem` automatically.
 
 ```rust
 use problem::prelude::*;
@@ -163,7 +183,7 @@ let res = in_context_of("processing string", || {
 assert_eq!(res.unwrap_err().to_string(), "while processing string got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
-The `_with` variant can be used to delay computation of error message to the moment when actual `Err` variant has occurred.
+There is also `in_context_of_with(message_function, closure)` variant provided that can be used to defer construction of error to error path.
 
 ```rust
 use problem::prelude::*;
@@ -178,7 +198,7 @@ assert_eq!(res.unwrap_err().to_string(), "while processing string got error caus
 ```
 
 ## Nested context
-Context methods can be used multiple times to add another layer of context.
+Context methods can be used multiple times to layers of context.
 
 ```rust
 use problem::prelude::*;
@@ -199,16 +219,19 @@ assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo g
 
 # Aborting program on Problem
 `panic!(message, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
-This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
 
-If `log` feature is enabled (default) function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
+This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
+Alternatively if `log` feature is enabled (default), function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
+
+Panic hooks will produce backtrace of panic site if enabled via `RUST_BACKTRACE=1` environment variable along of the `Problem` object backtrace collected at object construction site.
 
 ```noformat
 ERROR: Panicked in libcore/slice/mod.rs:2334:5: index 18492 out of range for slice of length 512
 ```
 
 ## Panicking on `Result` with `Problem`
-Similarly to `.expect(message)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` with `Display` formatted message when called on `Err` variant of `Result` with error type implementing `Display` trait.
+Similarly to `.expect(message)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` in case of `Err` variant with `Display` formatted
+message and error converted to `Problem` to format the error message with `Display` trait.
 
 ```rust,should_panic
 use problem::prelude::*;
@@ -216,12 +239,12 @@ use problem::format_panic_to_stderr;
 
 format_panic_to_stderr();
 
-// Prints message: Failed to convert string due to: invalid utf-8 sequence of 1 bytes from index 2
-let _s = String::from_utf8(vec![0, 123, 255]).or_failed_to("convert string");
+// Prints message:
+let _s = String::from_utf8(vec![0, 123, 255]).or_failed_to("convert string"); // Failed to convert string due to: invalid utf-8 sequence of 1 bytes from index 2
 ```
 
 ## Panicking on `Option`
-Similarly to `.ok_or(error)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on `None` variant of `Option` type.
+Similarly to `.ok_or(error)`, method `.or_failed_to(message)` can be used to abort the program via `panic!()` with `Display` formatted message on `None` variant of `Option` type.
 
 ```rust,should_panic
 use problem::prelude::*;
@@ -230,12 +253,12 @@ use problem::format_panic_to_stderr;
 format_panic_to_stderr();
 let nothing: Option<&'static str> = None;
 
-// Prints message: Failed to get something
-let _s = nothing.or_failed_to("get something");
+let _s = nothing.or_failed_to("get something"); // Failed to get something
 ```
 
 ## Panicking on iterators of `Result`
 Method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on iterators with `Result` item when first `Err` is encountered otherwise unwrapping the `Ok` value.
+The error type will be converted to `Problem` just before panicing.
 
 ```rust,should_panic
 use problem::prelude::*;
@@ -245,16 +268,16 @@ format_panic_to_stderr();
 
 let results = vec![Ok(1u32), Ok(2u32), Err("oops")];
 
-// Prints message: Failed to collect numbers due to: oops
 let _ok: Vec<u32> = results.into_iter()
     .or_failed_to("collect numbers")
-    .collect();
+    .collect(); // Failed to collect numbers due to: oops
 ```
 
 # Logging errors
-If `log` feature is enabled (default) function `ok_or_log_warn()` or `ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert
+If `log` feature is enabled (default) function `.ok_or_log_warn()` or `.ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert
 `Result` into `Option` while logging `Err` wariants as warnings or errors.
-When used on iterators `flatten()` addaptor can be used to filter out all `Err` variant items after they were logged and converted to `None`.
+
+When used on iterators `.flatten()` addaptor can be used to filter out all `Err` variant items after they were logged and converted to `None`.
 
 ```rust
 use problem::prelude::*;
@@ -361,12 +384,12 @@ Fatal error: Panicked in src/lib.rs:592:35: Failed to quix due to: Baz error; ca
 ```
 
 ## Access
-Formatted backtrace `&str` can be accessed via `Problem::backtrace` function that will return `Some` if `backtrace` feature is available and `RUST_BACKTRACE=1` environment variable is set.
+Formatted backtrace `&str` can be accessed via `Problem::backtrace` function that will return `Some` if `backtrace` feature is enabled and `RUST_BACKTRACE=1` environment variable is set.
 
 ```rust
 use problem::prelude::*;
 
-Problem::from_error("foo").backtrace(); // Some(<&str>)
+Problem::from_error("foo").backtrace(); // Some("   0: backtrace...")
 ```
  */
 #[cfg(feature = "log")]
@@ -387,7 +410,8 @@ pub mod prelude {
     pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
-/// Error type that is not supposed to be handled but reported, panicked on or ignored
+/// Wraps error, context and backtrace information and formats it for display.
+/// Data is heap allocated to avoid type parameters or lifetimes.
 #[derive(Debug)]
 pub struct Problem {
     error: Box<dyn Error>,
@@ -518,6 +542,7 @@ where
     }
 }
 
+/// Extension trait to map `Option` to `Result` with `Problem`
 pub trait OkOrProblem<O> {
     fn ok_or_problem<P>(self, problem: P) -> Result<O, Problem>
     where
@@ -528,7 +553,6 @@ pub trait OkOrProblem<O> {
         P: Into<Problem>;
 }
 
-/// Map `Option` to `Result` with `Problem`
 impl<O> OkOrProblem<O> for Option<O> {
     fn ok_or_problem<P>(self, problem: P) -> Result<O, Problem>
     where
@@ -546,7 +570,7 @@ impl<O> OkOrProblem<O> for Option<O> {
     }
 }
 
-/// Add context to `T`; convert to `Problem` if needed
+/// Convert to `Problem` if needed and add context to it
 pub trait ProblemWhile {
     type WithContext;
 

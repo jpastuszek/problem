@@ -356,7 +356,7 @@ pub mod prelude {
 #[derive(Debug)]
 pub struct Problem {
     error: Box<dyn Error>,
-    context: Option<String>,
+    context: Vec<String>,
     backtrace: Option<String>,
 }
 
@@ -366,7 +366,7 @@ impl Problem {
     pub fn from_error(error: impl Into<Box<dyn Error>>) -> Problem {
         Problem {
             error: error.into(),
-            context: None,
+            context: Vec::new(),
             backtrace: format_backtrace(),
         }
     }
@@ -378,7 +378,7 @@ impl Problem {
 
         Problem {
             error: message.into(),
-            context: None,
+            context: Vec::new(),
             backtrace: format_backtrace(),
         }
     }
@@ -406,9 +406,15 @@ fn write_error_message(error: &Error, w: &mut impl Write) -> fmt::Result {
 
 impl Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(context) = self.context.as_ref() {
-            write!(f, "{} got error caused by: ", context)?;
+        if let Some(context) = self.context.last() {
+            write!(f, "while {}", context)?;
         } 
+        for context in self.context.iter().rev().skip(1) {
+            write!(f, ", while {}", context)?;
+        } 
+        if !self.context.is_empty() {
+            write!(f, " got error caused by: ")?;
+        }
 
         write_error_message(self.error.as_ref(), f)?;
 
@@ -510,7 +516,7 @@ pub trait ProblemWhile {
     type WithContext;
 
     /// Add context information
-    fn problem_while(self, message: &str) -> Self::WithContext;
+    fn problem_while(self, message: impl ToString) -> Self::WithContext;
 
     /// Add context information from function call
     fn problem_while_with<F, M>(self, message: F) -> Self::WithContext
@@ -522,16 +528,8 @@ pub trait ProblemWhile {
 impl ProblemWhile for Problem {
     type WithContext = Problem;
 
-    fn problem_while(mut self, message: &str) -> Problem {
-        if let Some(context) = self.context.as_mut() {
-            //TODO: this may be slow
-            context.insert_str(0, ", ");
-            context.insert_str(0, message);
-            context.insert_str(0, "while ");
-        };
-        if self.context.is_none() {
-            self.context = Some(format!("while {}", message));
-        }
+    fn problem_while(mut self, message: impl ToString) -> Problem {
+        self.context.push(message.to_string());
         self
     }
 
@@ -540,7 +538,7 @@ impl ProblemWhile for Problem {
         F: FnOnce() -> M,
         M: ToString,
     {
-        self.problem_while(&message().to_string())
+        self.problem_while(message())
     }
 }
 
@@ -550,7 +548,7 @@ where
 {
     type WithContext = Result<O, Problem>;
 
-    fn problem_while(self, message: &str) -> Result<O, Problem> {
+    fn problem_while(self, message: impl ToString) -> Result<O, Problem> {
         self.map_err(|err| err.into().problem_while(message))
     }
 

@@ -2,12 +2,12 @@
 name = "problem"
 version = "4.0.1-alpha.0"
 authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
-description = "Error handling for command line applications"
+description = "Error handling for command line applications or prototypes"
 build = "build.rs"
 repository = "https://github.com/jpastuszek/problem"
 readme = "README.md"
-keywords = ["error"]
-categories = ["command-line-interface"]
+keywords = ["error", "context"]
+categories = ["rust-patterns"]
 license = "MIT"
 
 [features]

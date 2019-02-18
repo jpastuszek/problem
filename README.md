@@ -55,3 +55,5 @@ let _s = foo().or_failed_to("create a string"); // Fatal error: Panicked in src/
 ```
 
 For more examples see crate documentation at [docs.rs](https://docs.rs/problem).
+
+If you are looking for fully typed, zero-cost way of adding context to error values see [error-context crate](https://github.com/jpastuszek/error-context).

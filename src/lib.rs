@@ -309,27 +309,27 @@ When compiled with `backtrace` feature (default) formatting of backtraces for `P
 `RUST_BACKTRACE=1` environment variable.
 
 ```noformat
-Fatal error: Panicked in src/lib.rs:592:35: Failed to quix due to: Baz error; caused by: Bar error; caused by: Foo error
+Fatal error: thread 'tests::test_panic_format_stderr_problem' panicked at src/lib.rs:657:35 with: Failed to complete processing task due to: while processing object, while processing input data, while parsing input got error caused by: boom!
 --- Cause
    0: backtrace::backtrace::trace_unsynchronized::h936094cb968a67c2
-             at /Users/foo/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
-   1: problem::Problem::from_error::h48a8ff9d529f11bb
-             at /Users/foo/Documents/problem/src/lib.rs:370
-   2: <problem::Problem as core::convert::From<E>>::from::hf31b10e28587c494
-             at /Users/foo/Documents/problem/src/lib.rs:435
-   3: <T as core::convert::Into<U>>::into::h85c2279609a448ec
+             at /Users/jpastuszek/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
+   1: problem::Problem::from_error::hfdbc5afef77017de
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:435
+   2: <problem::Problem as core::convert::From<E>>::from::h3b5fdbec33645197
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:500
+   3: <T as core::convert::Into<U>>::into::h37311b4bc5720d6d
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/convert.rs:455
-   4: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::{{closure}}::he05bcd7535507f2a
-             at /Users/foo/Documents/problem/src/lib.rs:592
-   5: <core::result::Result<T, E>>::unwrap_or_else::h372df670aacfe76e
-             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/result.rs:774
-   6: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h4caef43db20e9b2f
-             at /Users/foo/Documents/problem/src/lib.rs:592
-   7: problem::tests::test_result_cause_chain::h463bd0663dc29edc
-             at /Users/foo/Documents/problem/src/lib.rs:923
-   8: problem::tests::test_result_cause_chain::{{closure}}::hb10572dbf0a3d9f9
-             at /Users/foo/Documents/problem/src/lib.rs:922
-   9: core::ops::function::FnOnce::call_once::h5b7f0a818ead5b66
+   4: <core::result::Result<O, E> as problem::ProblemWhile>::problem_while::{{closure}}::h97ad232ce9ba14fb
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:617
+   5: <core::result::Result<T, E>>::map_err::he22546342a0a16ff
+             at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/result.rs:530
+   6: <core::result::Result<O, E> as problem::ProblemWhile>::problem_while::he5e05f693d81f439
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:617
+   7: problem::tests::test_panic_format_stderr_problem::he7f271034488edfe
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:1053
+   8: problem::tests::test_panic_format_stderr_problem::{{closure}}::hd06e112465364a39
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:1051
+   9: core::ops::function::FnOnce::call_once::hb512c264f284bc3f
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/ops/function.rs:238
   10: <F as alloc::boxed::FnBox<A>>::call_box::h0b961cc85c049bee
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/liballoc/boxed.rs:673
@@ -349,26 +349,26 @@ Fatal error: Panicked in src/lib.rs:592:35: Failed to quix due to: Baz error; ca
   18: __pthread_start
 --- Panicked
    0: backtrace::backtrace::trace_unsynchronized::h936094cb968a67c2
-             at /Users/foo/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
+             at /Users/jpastuszek/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.13/src/backtrace/mod.rs:57
    1: problem::format_panic_to_stderr::{{closure}}::h24ae835f59658f26
-             at /Users/foo/Documents/problem/src/lib.rs:796
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:868
    2: std::panicking::rust_panic_with_hook::h3fe6a67edb032589
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:495
    3: std::panicking::continue_panic_fmt::hf7169aba6b1afe9c
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:398
    4: std::panicking::begin_panic_fmt::hb5f6d46d54559b8a
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libstd/panicking.rs:353
-   5: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::{{closure}}::he05bcd7535507f2a
-             at /Users/foo/Documents/problem/src/lib.rs:592
-   6: <core::result::Result<T, E>>::unwrap_or_else::h372df670aacfe76e
+   5: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::{{closure}}::h8e0b5d62111b80f4
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:657
+   6: <core::result::Result<T, E>>::unwrap_or_else::h8bcc063ecb00981e
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/result.rs:774
-   7: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h4caef43db20e9b2f
-             at /Users/foo/Documents/problem/src/lib.rs:592
-   8: problem::tests::test_result_cause_chain::h463bd0663dc29edc
-             at /Users/foo/Documents/problem/src/lib.rs:923
-   9: problem::tests::test_result_cause_chain::{{closure}}::hb10572dbf0a3d9f9
-             at /Users/foo/Documents/problem/src/lib.rs:922
-  10: core::ops::function::FnOnce::call_once::h5b7f0a818ead5b66
+   7: <core::result::Result<O, E> as problem::FailedTo<O>>::or_failed_to::h2e59dbec5efe6366
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:657
+   8: problem::tests::test_panic_format_stderr_problem::he7f271034488edfe
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:1058
+   9: problem::tests::test_panic_format_stderr_problem::{{closure}}::hd06e112465364a39
+             at /Users/jpastuszek/Documents/problem/src/lib.rs:1051
+  10: core::ops::function::FnOnce::call_once::hb512c264f284bc3f
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/libcore/ops/function.rs:238
   11: <F as alloc::boxed::FnBox<A>>::call_box::h0b961cc85c049bee
              at /rustc/9fda7c2237db910e41d6a712e9a2139b352e558b/src/liballoc/boxed.rs:673
@@ -836,27 +836,22 @@ fn format_backtrace() -> Option<String> {
 fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> String {
     let mut message = String::new();
 
-    if let Some(location) = panic.location() {
-        write!(
-            message,
-            "Panicked in {}:{}:{}: ",
-            location.file(),
-            location.line(),
-            location.column()
-        )
-        .ok();
-    }
+    let thread = std::thread::current();
+    let name = thread.name().unwrap_or("<unnamed>");
 
-    // Try different things
-    if let Some(value) = panic.payload().downcast_ref::<String>() {
-        message.push_str(&value);
-    } else if let Some(value) = panic.payload().downcast_ref::<&str>() {
-        message.push_str(value);
-    } else if let Some(value) = panic.payload().downcast_ref::<&Error>() {
-        write!(message, "{} ({:?})", value, value).ok();
-        //TODO: print cause chain
+    // taken from libstd
+    let msg = match panic.payload().downcast_ref::<&'static str>() {
+        Some(s) => *s,
+        None => match panic.payload().downcast_ref::<String>() {
+            Some(s) => &s[..],
+            None => "Box<Any>",
+        }
+    };
+
+    if let Some(location) = panic.location() {
+        write!(message, "thread '{}' panicked at {} with: {}", name, location, msg).ok();
     } else {
-        write!(message, "{:?}", panic).ok();
+        write!(message, "thread '{}' panicked with: {}'", name, msg).ok();
     }
 
     if let Some(backtrace) = backtrace {
@@ -867,7 +862,7 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
     message
 }
 
-/// Set panic hook so that when program panics it will print the `Display` version of error massage to stderr
+/// Set panic hook so that formats error message to `stderr` with more `Problem` friendly way
 pub fn format_panic_to_stderr() {
     panic::set_hook(Box::new(|panic_info| {
         let backtrace = format_backtrace();
@@ -875,7 +870,7 @@ pub fn format_panic_to_stderr() {
     }));
 }
 
-/// Set panic hook so that when program panics it will log the `Display` version of error massage with error! macro
+/// Set panic hook so that when program panics it will log error massage with `error!` macro
 #[cfg(feature = "log")]
 pub fn format_panic_to_error_log() {
     panic::set_hook(Box::new(|panic_info| {
@@ -1060,6 +1055,22 @@ mod tests {
             .problem_while("processing object");
 
         result.or_failed_to("complete processing task");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_format_stderr_unwrap() {
+        format_panic_to_stderr();
+        let result: Result<(), io::Error> = Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+        result.unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_format_stderr_expect() {
+        format_panic_to_stderr();
+        let result: Result<(), io::Error> = Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+        result.expect("foo");
     }
 
     #[test]

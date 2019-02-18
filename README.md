@@ -1,20 +1,20 @@
-The aim of this library is to help writing command line programs or library prototypes more efficiently in Rust by simplifying error handling in program code.
+The aim of this library is to help writing command line programs or prototypes more efficiently in Rust by simplifying error handling in program code.
 
-This library introduces `Problem` type which can be used on high level APIs for which error handling boils down to:
+This crate introduces `Problem` type which can be used on high level APIs for which error handling boils down to:
 * reporting error message (e.g. log with `error!` macro),
 * aborting program on error other than a bug (e.g. using `panic!` macro),
 * bubbling up errors (e.g. with `?`),
 * ignoring errors (e.g. using `Result::ok`).
 
 # Goals
-* Simplifying signatures of functions that can fail to one error type so functions compose more easily.
-* Allow errors to bubble up easily by elimination of life times in error types.
+* Simplify signatures of functions that can fail to one error type so they compose easier.
 * Produce detailed user friendly error messages with `Display` formatting including error cause chain and backtrace (when requested).
 * Make it convenient to add context to error message in different situations.
 * Make it convenient to report (print or log) or abort program on error in different situations.
 * Make it easy to construct `Problem` ad-hock (e.g. from string literal).
 * Low effort integration with existing error types and program flows.
 * Minimize performance impact on good path.
+* Allow errors to bubble up by elimination of lifetimes in external error types.
 
 # Non-goals
 * Providing ability to match on particular error variant to facilitate recovering from error condition.

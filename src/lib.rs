@@ -1,5 +1,5 @@
 /*!
-This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line programs or prototype libraries) for which error handling boils down to:
+This crate introduces `Problem` type which can be used on high level APIs (e.g. in command line programs or prototypes) for which error handling boils down to:
 * reporting error message (e.g. log with `error!` macro),
 * aborting program on error other than a bug (e.g. using `panic!` macro),
 * bubbling up errors (e.g. with `?`),

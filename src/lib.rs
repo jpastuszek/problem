@@ -848,11 +848,11 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
         }
     };
 
-    if let Some(location) = panic.location() {
-        write!(message, "thread '{}' panicked at {} with: {}", name, location, msg).ok();
-    } else {
-        write!(message, "thread '{}' panicked with: {}'", name, msg).ok();
-    }
+    match (backtrace.is_some(), panic.location()) {
+        (true, Some(location)) => write!(message, "thread '{}' panicked at {} with: {}", name, location, msg).ok(),
+        (true, None) => write!(message, "thread '{}' panicked with: {}", name, msg).ok(),
+        (false, _) => write!(message, "{}", msg).ok(),
+    };
 
     if let Some(backtrace) = backtrace {
         message.push_str("\n--- Panicked\n");

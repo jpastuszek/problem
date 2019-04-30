@@ -454,11 +454,13 @@ impl Problem {
     }
 }
 
+#[allow(deprecated)]
 fn write_error_message(error: &Error, w: &mut impl Write) -> fmt::Result {
     write!(w, "{}", error)?;
 
     let mut error_cause = error;
     loop {
+        // Note: using Error::cause() here to be backward compatible with older errors
         if let Some(cause) = error_cause.cause() {
             write!(w, "; caused by: {}", cause)?;
             error_cause = cause;

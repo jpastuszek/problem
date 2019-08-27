@@ -9,7 +9,7 @@ This crate introduces `Problem` type which can be used on high level APIs (e.g. 
 The core type of this crate is `Problem`.
 It is used to capture error, backtrace (if enabled) and any additional context information and present it in user friendly way via `Display` implementation.
 
-This library also provides many additional extension traits and some functions that make it easy to construct `Problem` type in different situations 
+This library also provides many additional extension traits and some functions that make it easy to construct `Problem` type in different situations
 as well as report or abort programs on error.
 It is recommended to import all the types and traits via perlude module: `use problem::prelude::*`.
 
@@ -225,7 +225,7 @@ assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo g
 This library provides function `format_panic_to_stderr()` to set up hook that will use `eprintln!("{}", message)` to report panics.
 Alternatively if `log` feature is enabled (default), function `format_panic_to_error_log()` will set up hook that will log with `error!("{}", message)` to report panics.
 
-Panic hooks will produce backtrace of panic site if enabled via `RUST_BACKTRACE=1` environment variable along of the `Problem` object backtrace collected 
+Panic hooks will produce backtrace of panic site if enabled via `RUST_BACKTRACE=1` environment variable along of the `Problem` object backtrace collected
 at object construction site.
 
 ```noformat
@@ -260,7 +260,7 @@ let _s = nothing.or_failed_to("get something"); // Failed to get something
 ```
 
 ## Panicking on iterators of `Result`
-Method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on iterators with `Result` item when first `Err` 
+Method `.or_failed_to(message)` can be used to abort the program via `panic!()` with formatted message on iterators with `Result` item when first `Err`
 is encountered otherwise unwrapping the `Ok` value.
 The error type will be converted to `Problem` just before panicing.
 
@@ -305,7 +305,7 @@ assert_eq!(ok.as_slice(), [1, 2, 3, 4]);
 ```
 
 # Backtraces
-When compiled with `backtrace` feature (default) formatting of backtraces for `Problem` cause and `panic!` locations can be enabled via 
+When compiled with `backtrace` feature (default) formatting of backtraces for `Problem` cause and `panic!` locations can be enabled via
 `RUST_BACKTRACE=1` environment variable.
 
 ```noformat
@@ -389,7 +389,7 @@ Fatal error: thread 'tests::test_panic_format_stderr_problem' panicked at src/li
 ```
 
 ## Access
-Formatted backtrace `&str` can be accessed via `Problem::backtrace` function that will return `Some` if `backtrace` feature is enabled and `RUST_BACKTRACE=1` 
+Formatted backtrace `&str` can be accessed via `Problem::backtrace` function that will return `Some` if `backtrace` feature is enabled and `RUST_BACKTRACE=1`
 environment variable is set.
 
 ```rust
@@ -455,7 +455,7 @@ impl Problem {
 }
 
 #[allow(deprecated)]
-fn write_error_message(error: &Error, w: &mut impl Write) -> fmt::Result {
+fn write_error_message(error: &dyn Error, w: &mut impl Write) -> fmt::Result {
     write!(w, "{}", error)?;
 
     let mut error_cause = error;

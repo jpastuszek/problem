@@ -1,3 +1,5 @@
+[![Latest Version]][crates.io] [![Documentation]][docs.rs] ![License]
+
 The aim of this library is to help writing command line programs or prototypes more efficiently in Rust by simplifying error handling in program code.
 
 This crate introduces `Problem` type which can be used on high level APIs for which error handling boils down to:
@@ -57,3 +59,9 @@ let _s = foo().or_failed_to("create a string"); // Fatal error: Panicked in src/
 For more examples see crate documentation at [docs.rs](https://docs.rs/problem).
 
 If you are looking for fully typed, zero-cost way of adding context to error values see [error-context crate](https://github.com/jpastuszek/error-context).
+
+[crates.io]: https://crates.io/crates/problem
+[Latest Version]: https://img.shields.io/crates/v/problem.svg
+[Documentation]: https://docs.rs/problem/badge.svg
+[docs.rs]: https://docs.rs/problem
+[License]: https://img.shields.io/crates/l/problem.svg

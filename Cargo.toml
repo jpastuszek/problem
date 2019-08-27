@@ -5,6 +5,7 @@ authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
 description = "Error handling for command line applications or prototypes"
 build = "build.rs"
 repository = "https://github.com/jpastuszek/problem"
+documentation = "https://docs.rs/problem"
 readme = "README.md"
 keywords = ["error", "context"]
 categories = ["rust-patterns"]

@@ -277,6 +277,23 @@ let _ok: Vec<u32> = results.into_iter()
     .collect(); // Failed to collect numbers due to: oops
 ```
 
+# Main function exit with error message and custom status
+`FatalProblem` and `result::FinalResult` types can be used on `main` function signature to allow programs to terminate with `Problem` formatted message and custom exit status.
+
+```rust,should_panic
+use problem::prelude::*;
+
+fn main() -> FinalResult {
+    // Prints "I'm sorry Dave, I'm afraid I can't do that" and exits with status 1
+    Err(Problem::from_error("I'm sorry Dave, I'm afraid I can't do that"))?;
+
+    // Prints "I'm sorry Dave, I'm afraid I can't do that" and exits with status 42
+    Err(Problem::from_error("I'm sorry Dave, I'm afraid I can't do that")).fatal_with_status(42)?;
+
+    Ok(())
+}
+```
+
 # Logging errors
 If `log` feature is enabled (default) function `.ok_or_log_warn()` or `.ok_or_log_error()` can be used on `Result` and iterator of `Result` items to convert
 `Result` into `Option` while logging `Err` wariants as warnings or errors.
@@ -413,6 +430,10 @@ pub mod prelude {
         in_context_of, in_context_of_with, FailedTo, FailedToIter, Fatal, FatalProblem, MapProblem,
         MapProblemOr, OkOrProblem, Problem, ProblemWhile,
     };
+
+    pub use super::result::FinalResult;
+    // Note that `result::Result` is not part of prelude as it may conflict with standard library or
+    // custom library result types.
 
     #[cfg(feature = "log")]
     pub use super::logged::{OkOrLog, OkOrLogIter};

@@ -503,6 +503,40 @@ where
     }
 }
 
+/// This error type is meant to be used as `main()` result error. It will panic on `Debug` display so
+/// that the program can terminate with nice message formatted with `Problem`.
+pub struct FatalProblem(Problem);
+
+impl From<Problem> for FatalProblem
+{
+    fn from(error: Problem) -> FatalProblem {
+        FatalProblem(error)
+    }
+}
+
+impl<E> From<E> for FatalProblem
+where
+    E: Into<Box<dyn std::error::Error>>,
+{
+    fn from(error: E) -> FatalProblem {
+        FatalProblem(Problem::from_error(error))
+    }
+}
+
+impl fmt::Debug for FatalProblem {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        panic!("Fatal problem: {}", self.0);
+    }
+}
+
+pub mod result {
+    //! Handy Result types using `Problem` as error.
+    use super::{Problem, FatalProblem};
+
+    pub type Result<T> = std::result::Result<T, Problem>;
+    pub type FinalResult = std::result::Result<(), FatalProblem>;
+}
+
 /// Map type containing error to type containing `Problem`
 pub trait MapProblem {
     type ProblemCarrier;

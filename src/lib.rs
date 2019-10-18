@@ -405,11 +405,13 @@ use std::error::Error;
 use std::fmt::{self, Display, Write};
 use std::panic;
 
+const DEFAULT_FATAL_STATUS: i32 = 1;
+
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
 pub mod prelude {
     pub use super::{
-        in_context_of, in_context_of_with, FailedTo, FailedToIter, MapProblem, MapProblemOr,
-        OkOrProblem, Problem, ProblemWhile,
+        in_context_of, in_context_of_with, FailedTo, FailedToIter, Fatal, FatalProblem, MapProblem,
+        MapProblemOr, OkOrProblem, Problem, ProblemWhile,
     };
 
     #[cfg(feature = "log")]
@@ -503,14 +505,20 @@ where
     }
 }
 
-/// This error type is meant to be used as `main()` result error. It will panic on `Debug` display so
-/// that the program can terminate with nice message formatted with `Problem`.
-pub struct FatalProblem(Problem);
+/// This error type is meant to be used as `main()` result error. It implements `Debug` display so
+/// that the program can terminate with nice message formatted with `Problem` and custom exit
+/// status.
+pub struct FatalProblem {
+    status: i32,
+    problem: Problem,
+}
 
-impl From<Problem> for FatalProblem
-{
-    fn from(error: Problem) -> FatalProblem {
-        FatalProblem(error)
+impl From<Problem> for FatalProblem {
+    fn from(problem: Problem) -> FatalProblem {
+        FatalProblem {
+            status: DEFAULT_FATAL_STATUS,
+            problem,
+        }
     }
 }
 
@@ -519,21 +527,47 @@ where
     E: Into<Box<dyn std::error::Error>>,
 {
     fn from(error: E) -> FatalProblem {
-        FatalProblem(Problem::from_error(error))
+        FatalProblem {
+            status: DEFAULT_FATAL_STATUS,
+            problem: Problem::from_error(error),
+        }
     }
 }
 
 impl fmt::Debug for FatalProblem {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        panic!("Fatal problem: {}", self.0);
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        eprintln!("{}", self.problem);
+        std::process::exit(self.status)
+    }
+}
+
+/// Extension trait to map `Option` to `Result` with `Problem`
+pub trait Fatal<O> {
+    fn fatal(self) -> Result<O, FatalProblem>;
+    fn fatal_with_status(self, status: i32) -> Result<O, FatalProblem>;
+}
+
+/// Extension trait that allow to convert to `Result` with `FatalProblem`
+impl<O> Fatal<O> for Result<O, Problem> {
+    /// Converts to `Result` with `FatalProblem` and default exit status
+    fn fatal(self) -> Result<O, FatalProblem> {
+        self.fatal_with_status(DEFAULT_FATAL_STATUS)
+    }
+
+    /// Converts to `Result` with `FatalProblem` and given exit status
+    fn fatal_with_status(self, status: i32) -> Result<O, FatalProblem> {
+        self.map_err(|problem| FatalProblem { status, problem })
     }
 }
 
 pub mod result {
     //! Handy Result types using `Problem` as error.
-    use super::{Problem, FatalProblem};
+    use super::{FatalProblem, Problem};
 
+    /// `Result` with `Problem`
     pub type Result<T> = std::result::Result<T, Problem>;
+
+    /// `Result` with `FatalProblem` to be used as `main()` return value
     pub type FinalResult = std::result::Result<(), FatalProblem>;
 }
 
@@ -881,11 +915,16 @@ fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> Str
         None => match panic.payload().downcast_ref::<String>() {
             Some(s) => &s[..],
             None => "Box<Any>",
-        }
+        },
     };
 
     match (backtrace.is_some(), panic.location()) {
-        (true, Some(location)) => write!(message, "thread '{}' panicked at {} with: {}", name, location, msg).ok(),
+        (true, Some(location)) => write!(
+            message,
+            "thread '{}' panicked at {} with: {}",
+            name, location, msg
+        )
+        .ok(),
         (true, None) => write!(message, "thread '{}' panicked with: {}", name, msg).ok(),
         (false, _) => write!(message, "{}", msg).ok(),
     };
@@ -1097,7 +1136,8 @@ mod tests {
     #[should_panic]
     fn test_panic_format_stderr_unwrap() {
         format_panic_to_stderr();
-        let result: Result<(), io::Error> = Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+        let result: Result<(), io::Error> =
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
         result.unwrap();
     }
 
@@ -1105,7 +1145,8 @@ mod tests {
     #[should_panic]
     fn test_panic_format_stderr_expect() {
         format_panic_to_stderr();
-        let result: Result<(), io::Error> = Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
+        let result: Result<(), io::Error> =
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"));
         result.expect("foo");
     }
 

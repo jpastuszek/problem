@@ -1,6 +1,6 @@
 [package]
 name = "problem"
-version = "5.2.1-alpha.0"
+version = "5.2.1"
 authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
 description = "Error handling for command line applications or prototypes"
 repository = "https://github.com/jpastuszek/problem"

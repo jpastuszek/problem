@@ -26,7 +26,7 @@ This crate introduces `Problem` type which can be used on high level APIs for wh
 # Example
 Implicit conversion to `Problem` type and context message.
 
-```rust,skt-problem
+```rust
 use problem::prelude::*;
 
 fn foo() -> Result<String, Problem> {
@@ -41,7 +41,7 @@ assert_eq!(result.unwrap_err().to_string(), "while creating string got error cau
 
 Handling fatal errors with panic using `.or_failed_to()`.
 
-```rust,should_panic,skt-problem
+```rust
 use problem::prelude::*;
 use problem::format_panic_to_stderr;
 

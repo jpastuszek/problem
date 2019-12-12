@@ -47,6 +47,20 @@ drop(error);
 drop(problem);
 ```
 
+## Using macro
+Using `problem!` macro an `Err` variant of `Result` containing `Problem` with formatted message can be constructed.
+
+```rust
+use problem::prelude::*;
+use std::io;
+
+fn foo() -> Result<(), Problem> {
+    problem!("Can't count to {}", 4)
+}
+
+assert_eq!(foo().unwrap_err().to_string(), "Can't count to 4");
+```
+
 ## Implicitly
 Types implementing `Into<Box<dyn Error>>` trait can be converted to `Problem` via `From` trait. `?` will automatically convert types implementing `Error` to `Problem`.
 
@@ -427,8 +441,8 @@ const DEFAULT_FATAL_STATUS: i32 = 1;
 /// Includes `Problem` type and related conversion traits and `in_context_of*` functions
 pub mod prelude {
     pub use super::{
-        in_context_of, in_context_of_with, FailedTo, FailedToIter, Fatal, FatalProblem, MapProblem,
-        MapProblemOr, OkOrProblem, Problem, ProblemWhile,
+        in_context_of, in_context_of_with, problem, FailedTo, FailedToIter, Fatal, FatalProblem,
+        MapProblem, MapProblemOr, OkOrProblem, Problem, ProblemWhile,
     };
 
     pub use super::result::FinalResult;
@@ -524,6 +538,13 @@ where
     fn from(error: E) -> Problem {
         Problem::from_error(error)
     }
+}
+
+/// Construct `Err` variant of `Result` containing `Problem` with given message formatted with
+/// `format!` macro.
+#[macro_export]
+macro_rules! problem {
+    ($ ($ arg : tt) *) => { Err(Problem::from_error(format!($($arg)*))) };
 }
 
 /// This error type is meant to be used as `main()` result error. It implements `Debug` display so
@@ -1022,6 +1043,13 @@ mod tests {
         fn source(&self) -> Option<&(dyn Error + 'static)> {
             Some(&self.0)
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed to test due to: foo: 1")]
+    fn test_problem_macro() {
+        let err: Result<(), Problem> = problem!("foo: {}", 1);
+        err.or_failed_to("test");
     }
 
     #[test]

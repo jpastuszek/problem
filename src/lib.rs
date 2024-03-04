@@ -233,6 +233,39 @@ let res = in_context_of("doing stuff", || {
 assert_eq!(res.unwrap_err().to_string(), "while doing stuff, while running foo got error caused by: invalid utf-8 sequence of 1 bytes from index 2");
 ```
 
+# Converting `Problem` into type implementing `std::error::Error` trait
+Use `Problem::into_error()` or `.into_error()` on `Result` type to convert `Problem` into type implementing `std::error::Error`.
+This allows to return erors to layers that require `Error` trait implementation for errors.
+
+```rust
+use problem::prelude::*;
+
+fn foo<E: std::error::Error>(err: E) {
+    assert_eq!(err.to_string(), "while bar got error caused by: foo");
+}
+
+foo(Problem::from("foo").problem_while("bar").into_error());
+```
+
+```rust
+use problem::prelude::*;
+
+struct LibError(String);
+
+impl<E: std::error::Error> From<E> for LibError {
+    fn from(e: E) -> LibError {
+        LibError(e.to_string())
+    }
+}
+
+fn foo() -> Result<(), LibError> {
+    problem!("foo").problem_while("bar").into_error()?;
+    Ok(())
+}
+
+assert_eq!(foo().unwrap_err().0.to_string(), "while bar got error caused by: foo");
+```
+
 # Aborting program on `Problem`
 `panic!(message, problem)` macro can be used directly to abort program execution but error message printed on the screen will be formatted with `Debug` implementation.
 
@@ -436,7 +469,6 @@ This feature is disabled by default to allow `!Sync` or `!Send` error types to b
 #[cfg(feature = "log")]
 #[macro_use]
 extern crate log;
-use std::error::Error;
 use std::fmt::{self, Display, Write};
 use std::panic;
 
@@ -446,7 +478,7 @@ const DEFAULT_FATAL_STATUS: i32 = 1;
 pub mod prelude {
     pub use super::{
         in_context_of, in_context_of_with, problem, FailedTo, FailedToIter, Fatal, FatalProblem,
-        MapProblem, MapProblemOr, OkOrProblem, Problem, ProblemWhile,
+        IntoError, MapProblem, MapProblemOr, OkOrProblem, Problem, ProblemWhile,
     };
 
     pub use super::result::FinalResult;
@@ -458,9 +490,9 @@ pub mod prelude {
 }
 
 #[cfg(feature = "send-sync")]
-type DynError = dyn Error + Send + Sync;
+type DynError = dyn std::error::Error + Send + Sync;
 #[cfg(not(feature = "send-sync"))]
-type DynError = dyn Error;
+type DynError = dyn std::error::Error;
 
 /// Wraps error, context and backtrace information and formats it for display.
 /// Data is heap allocated to avoid type parameters or lifetimes.
@@ -483,7 +515,7 @@ impl Problem {
     }
 
     /// Same as `Problem::from_error` but stores only final message as `String` and does not take ownership of the error
-    pub fn from_error_message(error: &impl Error) -> Problem {
+    pub fn from_error_message(error: &impl std::error::Error) -> Problem {
         let mut message = String::new();
         write_error_message(error, &mut message).unwrap();
 
@@ -498,10 +530,15 @@ impl Problem {
     pub fn backtrace(&self) -> Option<&str> {
         self.backtrace.as_ref().map(String::as_str)
     }
+
+    /// Wraps Problem into type implementing Error trait
+    pub fn into_error(self) -> Error {
+        Error(self)
+    }
 }
 
 #[allow(deprecated)]
-fn write_error_message(error: &dyn Error, w: &mut impl Write) -> fmt::Result {
+fn write_error_message(error: &dyn std::error::Error, w: &mut impl Write) -> fmt::Result {
     write!(w, "{}", error)?;
 
     let mut error_cause = error;
@@ -763,6 +800,42 @@ where
     B: FnOnce() -> Result<O, Problem>,
 {
     body().problem_while_with(message)
+}
+
+/// Wraps `Problem` into type implementing `Error` trait.
+#[derive(Debug)]
+pub struct Error(Problem);
+
+impl Error {
+    /// Returns wrapped `Problem`
+    pub fn unwrap(self) -> Problem {
+        self.0
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for Error {}
+
+pub trait IntoError {
+    type ErrorResult<E>;
+
+    /// Wrap into `Error` type implementing `std::error::Error` trait
+    fn into_error(self) -> Self::ErrorResult<Error>;
+}
+
+impl<O, E> IntoError for Result<O, E>
+where
+    E: Into<Problem>,
+{
+    type ErrorResult<EE> = Result<O, EE>;
+    fn into_error(self) -> Self::ErrorResult<Error> {
+        self.map_err(|err| Error(err.into()))
+    }
 }
 
 /// Extension of `Result` that allows program to panic with `Display` message on `Err` for fatal application errors that are not bugs

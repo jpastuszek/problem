@@ -428,6 +428,10 @@ use problem::prelude::*;
 
 Problem::from_error("foo").backtrace(); // Some("   0: backtrace...")
 ```
+
+# [Send] and [Sync]
+[Problem] will implement [Send] and [Sync] traits when feature `send-sync` is enabled.
+This feature is disabled by default to allow `!Sync` or `!Send` error types to be wrapped by [Problem].
  */
 #[cfg(feature = "log")]
 #[macro_use]
@@ -453,11 +457,16 @@ pub mod prelude {
     pub use super::logged::{OkOrLog, OkOrLogIter};
 }
 
+#[cfg(feature = "send-sync")]
+type DynError = dyn Error + Send + Sync;
+#[cfg(not(feature = "send-sync"))]
+type DynError = dyn Error;
+
 /// Wraps error, context and backtrace information and formats it for display.
 /// Data is heap allocated to avoid type parameters or lifetimes.
 #[derive(Debug)]
 pub struct Problem {
-    error: Box<dyn Error>,
+    error: Box<DynError>,
     context: Vec<String>,
     backtrace: Option<String>,
 }
@@ -465,7 +474,7 @@ pub struct Problem {
 impl Problem {
     /// Create `Problem` from types implementing `Into<Box<dyn Error>>` (including `String` and `&str`) so that `Error::cause`
     /// chain is followed through in the `Display` message
-    pub fn from_error(error: impl Into<Box<dyn Error>>) -> Problem {
+    pub fn from_error(error: impl Into<Box<DynError>>) -> Problem {
         Problem {
             error: error.into(),
             context: Vec::new(),
@@ -533,7 +542,7 @@ impl Display for Problem {
 /// Every type implementing `Into<Box<dyn Error>>` trait (including `String` and `&str` types) can be converted to `Problem` via `?` operator
 impl<E> From<E> for Problem
 where
-    E: Into<Box<dyn Error>>,
+    E: Into<Box<DynError>>,
 {
     fn from(error: E) -> Problem {
         Problem::from_error(error)
@@ -566,7 +575,7 @@ impl From<Problem> for FatalProblem {
 
 impl<E> From<E> for FatalProblem
 where
-    E: Into<Box<dyn std::error::Error>>,
+    E: Into<Box<DynError>>,
 {
     fn from(error: E) -> FatalProblem {
         FatalProblem {
@@ -809,7 +818,7 @@ where
     fn or_failed_to(self, message: M) -> ProblemIter<Self, M> {
         ProblemIter {
             inner: self,
-            message: message,
+            message,
         }
     }
 }
@@ -1256,5 +1265,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![1, 2, 3]
         );
+    }
+
+    #[test]
+    #[cfg(feature = "send-sync")]
+    fn test_problem_send_sync() {
+        fn foo<S: Send + Sync>(_s: S) {}
+        foo(Problem::from("foo"));
+        assert!(true)
     }
 }

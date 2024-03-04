@@ -12,6 +12,7 @@ license = "MIT"
 
 [features]
 default = ["log", "backtrace"]
+send-sync = []
 
 [dependencies]
 log = { version = "0.4.3", optional = true }

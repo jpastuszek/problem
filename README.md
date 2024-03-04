@@ -19,9 +19,8 @@ This crate introduces `Problem` type which can be used on high level APIs for wh
 * Allow errors to bubble up by elimination of lifetimes in external error types.
 
 # Non-goals
-* Providing ability to match on particular error variant to facilitate recovering from error condition.
+* Providing ability to match on particular error variant to facilitate recovering from error condition (casting).
 * Zero cost error path - e.g. no allocation.
-* `Sync` or `Send` compatibility.
 
 # Example
 Implicit conversion to `Problem` type and context message.

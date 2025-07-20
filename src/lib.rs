@@ -1027,7 +1027,7 @@ fn format_backtrace() -> Option<String> {
     }
 }
 
-fn format_panic(panic: &std::panic::PanicInfo, backtrace: Option<String>) -> String {
+fn format_panic(panic: &std::panic::PanicHookInfo, backtrace: Option<String>) -> String {
     let mut message = String::new();
 
     let thread = std::thread::current();
